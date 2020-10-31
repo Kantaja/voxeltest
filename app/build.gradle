@@ -1,0 +1,77 @@
+plugins {
+	id 'application'
+	id 'org.beryx.runtime' version '1.11.4'
+}
+
+import org.gradle.internal.os.OperatingSystem
+
+ext {
+	lwjglVersion = '3.2.3'
+	jomlVersion = '1.9.25'
+	fastutilVersion = '8.4.2'
+	commonsIoVersion = '2.8.0'
+	imguiVersion = '1.79-1.4.0'
+
+	switch (OperatingSystem.current()) {
+		case OperatingSystem.LINUX:
+			lwjglNatives = "natives-linux"
+			imguiNatives = "imgui-java-natives-linux"
+			break
+		case OperatingSystem.WINDOWS:
+			lwjglNatives = "natives-windows"
+			imguiNatives = "imgui-java-natives-windows"
+			break
+	}
+}
+
+repositories {
+	jcenter()
+	mavenCentral()
+}
+
+dependencies {
+	testImplementation 'junit:junit:4.13'
+	
+	implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+
+	['', '-jemalloc', '-glfw', '-openal', '-opengl', '-stb'].each {
+		implementation "org.lwjgl:lwjgl$it"
+		runtimeOnly "org.lwjgl:lwjgl$it::$lwjglNatives"
+	}
+	
+	implementation "org.joml:joml:${jomlVersion}"
+	implementation "it.unimi.dsi:fastutil:${fastutilVersion}"
+	implementation "commons-io:commons-io:${commonsIoVersion}"
+	
+	implementation "io.imgui.java:imgui-java-binding:$imguiVersion"
+	implementation "io.imgui.java:imgui-java-lwjgl3:$imguiVersion"
+	
+	runtimeOnly "io.imgui.java:$imguiNatives:$imguiVersion"
+}
+
+application {
+	mainClass = 'info.kuonteje.voxeltest.VoxelTest'
+	applicationDefaultJvmArgs = ['-XX:+UseShenandoahGC', '--enable-preview']
+}
+
+runtime {
+	launcher {
+		noConsole = true
+	}
+}
+
+apply plugin: 'eclipse'
+
+eclipse {
+	project {
+		name = 'voxeltest_app'
+	}
+}
+
+tasks.withType(JavaCompile) {
+	options.compilerArgs += '--enable-preview'
+}
+
+tasks.withType(Test) {
+	jvmArgs += '--enable-preview'
+}
