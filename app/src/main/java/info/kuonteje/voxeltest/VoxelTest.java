@@ -52,7 +52,7 @@ public class VoxelTest
 	
 	public static void main(String[] args)
 	{
-		try { Thread.sleep(5000L); } catch(Exception e) {}
+		//try { Thread.sleep(5000L); } catch(Exception e) {}
 		
 		if(!glfwInit()) throw new RuntimeException("Failed to initialize GLFW");
 		

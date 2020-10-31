@@ -47,7 +47,7 @@ public class ShaderProgram
 				
 				glDeleteProgram(program);
 				
-				throw new RuntimeException("failed to link shader program", new RuntimeException(log));
+				throw new RuntimeException("Failed to link shader program", new RuntimeException(log));
 			}
 		}
 		finally
@@ -153,7 +153,7 @@ public class ShaderProgram
 			
 			glDeleteShader(shader);
 			
-			throw new RuntimeException("failed to load " + type.toString() + " shader \"" + id + "\"", new RuntimeException(log));
+			throw new RuntimeException("Failed to load " + type.toString() + " shader \"" + id + "\"", new RuntimeException(log));
 		}
 		
 		return shader;
