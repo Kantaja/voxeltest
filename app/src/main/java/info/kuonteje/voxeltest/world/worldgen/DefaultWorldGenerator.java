@@ -81,7 +81,7 @@ public class DefaultWorldGenerator implements IWorldGenerator
 		}
 	}
 	
-	private float interpNoise(float[][][] noise, int x, int y, int z)
+	public static float interpNoise(float[][][] noise, int x, int y, int z)
 	{
 		// What the hell
 		int baseNx = x >> 2;

@@ -8,6 +8,7 @@ import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.util.MathUtil;
 import info.kuonteje.voxeltest.world.Chunk;
+import info.kuonteje.voxeltest.world.worldgen.DefaultWorldGenerator;
 
 public class DefaultCaveGenerator implements ICaveGenerator
 {
@@ -104,7 +105,7 @@ public class DefaultCaveGenerator implements ICaveGenerator
 					if(chunk.getBlockIdx(x, y, z) != 0)
 					{
 						// TODO chunk boundaries
-						if(interpNoise(noise, x, y, z) > THRESHOLD && chunk.getBlockIdx(x, y, z) != WATER
+						if(DefaultWorldGenerator.interpNoise(noise, x, y, z) > THRESHOLD && chunk.getBlockIdx(x, y, z) != WATER
 								&& chunk.getBlockIdx(x + 1, y, z) != WATER && chunk.getBlockIdx(x - 1, y, z) != WATER
 								&& chunk.getBlockIdx(x, y, z + 1) != WATER && chunk.getBlockIdx(x, y, z - 1) != WATER
 								&& chunk.getBlockIdx(x, y + 1, z) != WATER && chunk.getBlockIdx(x, y - 1, z) != WATER) chunk.setBlock(x, y, z, null);
@@ -112,36 +113,5 @@ public class DefaultCaveGenerator implements ICaveGenerator
 				}
 			}
 		}
-	}
-	
-	private float interpNoise(float[][][] noise, int x, int y, int z)
-	{
-		// What the hell x2
-		int baseNx = x >> 2;
-			int baseNy = y >> 2;
-					int baseNz = z >> 2;
-					
-					float xd = (x & 0x3) / 4.0F;
-					float yd = (y & 0x3) / 4.0F;
-					float zd = (z & 0x3) / 4.0F;
-					
-					float c000 = noise[baseNx][baseNz][baseNy];
-					float c001 = noise[baseNx][baseNz + 1][baseNy];
-					float c010 = noise[baseNx][baseNz][baseNy + 1];
-					float c011 = noise[baseNx][baseNz + 1][baseNy + 1];
-					float c100 = noise[baseNx + 1][baseNz][baseNy];
-					float c101 = noise[baseNx + 1][baseNz + 1][baseNy];
-					float c110 = noise[baseNx + 1][baseNz][baseNy + 1];
-					float c111 = noise[baseNx + 1][baseNz + 1][baseNy + 1];
-					
-					float c00 = MathUtil.lerp(c000, c100, xd);
-					float c01 = MathUtil.lerp(c001, c101, xd);
-					float c10 = MathUtil.lerp(c010, c110, xd);
-					float c11 = MathUtil.lerp(c011, c111, xd);
-					
-					float c0 = MathUtil.lerp(c00, c10, yd);
-					float c1 = MathUtil.lerp(c01, c11, yd);
-					
-					return MathUtil.lerp(c0, c1, zd);
 	}
 }
