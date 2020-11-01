@@ -10,11 +10,11 @@ import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.util.MathUtil;
 import info.kuonteje.voxeltest.world.Chunk;
 
-public class WorldGeneratorDefault implements IWorldGenerator
+public class DefaultWorldGenerator implements IWorldGenerator
 {
-	private final FastNoiseLite noiseGenerator, biomeGenerator;
+	private final FastNoiseLite terrainNoise, biomeNoise;
 	
-	public WorldGeneratorDefault(long seed)
+	public DefaultWorldGenerator(long seed)
 	{
 		int terrainSeed = (int)(seed & 0xFFFFFFFF);
 		int biomeSeed = (int)((seed >> 32) & 0xFFFFFFFF);
@@ -22,21 +22,21 @@ public class WorldGeneratorDefault implements IWorldGenerator
 		System.out.println("Terrain seed: " + terrainSeed);
 		System.out.println("Biome seed: " + biomeSeed);
 		
-		noiseGenerator = new FastNoiseLite(terrainSeed);
-		biomeGenerator = new FastNoiseLite(biomeSeed);
+		terrainNoise = new FastNoiseLite(terrainSeed);
+		biomeNoise = new FastNoiseLite(biomeSeed);
 		
-		noiseGenerator.setNoiseType(NoiseType.OPENSIMPLEX2);
-		noiseGenerator.setFractalType(FractalType.FBM);
-		noiseGenerator.setFractalOctaves(4);
-		noiseGenerator.setFrequency(0.006F);
+		terrainNoise.setNoiseType(NoiseType.OPENSIMPLEX2);
+		terrainNoise.setFractalType(FractalType.FBM);
+		terrainNoise.setFractalOctaves(4);
+		terrainNoise.setFrequency(0.006F);
 		
 		// TODO
-		biomeGenerator.setNoiseType(NoiseType.CELLULAR);
-		biomeGenerator.setCellularDistanceFunction(CellularDistanceFunction.HYBRID);
-		biomeGenerator.setCellularReturnType(CellularReturnType.CELL_VALUE);
-		biomeGenerator.setDomainWarpType(DomainWarpType.OPENSIMPLEX2);
-		biomeGenerator.setDomainWarpAmp(100.0F);
-		biomeGenerator.setFractalType(FractalType.DOMAIN_WARP_INDEPENDENT);
+		biomeNoise.setNoiseType(NoiseType.CELLULAR);
+		biomeNoise.setCellularDistanceFunction(CellularDistanceFunction.HYBRID);
+		biomeNoise.setCellularReturnType(CellularReturnType.CELL_VALUE);
+		biomeNoise.setDomainWarpType(DomainWarpType.OPENSIMPLEX2);
+		biomeNoise.setDomainWarpAmp(100.0F);
+		biomeNoise.setFractalType(FractalType.DOMAIN_WARP_INDEPENDENT);
 	}
 	
 	@Override
@@ -54,7 +54,7 @@ public class WorldGeneratorDefault implements IWorldGenerator
 			{
 				for(int y = 0; y < 10; y++)
 				{
-					noise[x][z][y] = noiseGenerator.getNoise(baseX + x * 4, baseY + y * 4, baseZ + z * 4) * 0.5F + 0.5F;
+					noise[x][z][y] = terrainNoise.getNoise(baseX + x * 4, baseY + y * 4, baseZ + z * 4) * 0.5F + 0.5F;
 				}
 			}
 		}
@@ -67,7 +67,7 @@ public class WorldGeneratorDefault implements IWorldGenerator
 			{
 				for(int y = 0; y < 33; y++)
 				{
-					noiseColumn[y] = interpNoise(noise, x, y, z) - (float)(baseY + y - 64.0) * 0.006F;
+					noiseColumn[y] = interpNoise(noise, x, y, z) - (float)(baseY + y) * 0.006F;
 				}
 				
 				for(int y = 0; y < 32; y++)
@@ -75,8 +75,7 @@ public class WorldGeneratorDefault implements IWorldGenerator
 					float density = noiseColumn[y];
 					
 					if(density > 0.5F) chunk.setBlock(x, y, z, Blocks.STONE);
-					else if(density > 0.44F) chunk.setBlock(x, y, z, noiseColumn[y + 1] < 0.44F ? (baseY + y <= 64 ? Blocks.SAND : Blocks.GRASS) : Blocks.DIRT);
-					else if(baseY + y < 64) chunk.setBlock(x, y, z, Blocks.WATER);
+					else if(density > 0.44F) chunk.setBlock(x, y, z, y >= 0 && noiseColumn[y + 1] < 0.44F ? Blocks.GRASS : Blocks.DIRT);
 				}
 			}
 		}
@@ -87,7 +86,7 @@ public class WorldGeneratorDefault implements IWorldGenerator
 		// What the hell
 		int baseNx = x >> 2;
 					int baseNy = y >> 2;
-					int baseNz = z >> 2;
+				int baseNz = z >> 2;
 		
 		float xd = (x & 0x3) / 4.0F;
 		float yd = (y & 0x3) / 4.0F;

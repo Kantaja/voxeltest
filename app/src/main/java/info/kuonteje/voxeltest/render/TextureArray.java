@@ -72,7 +72,7 @@ public class TextureArray
 		{
 			if(width != data.width() || height != data.height()) throw new RuntimeException("Failed to add asset \"" + textureId.toString() + "\" of type " +
 					AssetType.TEXTURE.toString() + " to texture array on layer " + layer + ": dimensions do not match (object " +
-					data.width() + "x" + data.height() + ", array " + width + "," + height + ")");
+					data.width() + "x" + data.height() + ", array " + width + "x" + height + ")");
 			
 			glTextureSubImage3D(texture.handle(), 0, 0, 0, layer, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
 		}

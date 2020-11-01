@@ -14,8 +14,9 @@ public class BlockModels
 	public static final BlockModel STONE = REGISTRY.register(new CubeModel(Blocks.STONE).setAll(BlockTextures.STONE));
 	public static final BlockModel DIRT = REGISTRY.register(new CubeModel(Blocks.DIRT).setAll(BlockTextures.DIRT));
 	public static final BlockModel GRASS = REGISTRY.register(new CubeModel(Blocks.GRASS).setTop(BlockTextures.GRASS_TOP).setSide(BlockTextures.GRASS_SIDE).setBottom(BlockTextures.DIRT));
-	public static final BlockModel WATER = REGISTRY.register(new CubeModel(Blocks.WATER).setTint(0x3F76E4).setAll(BlockTextures.WATER));
+	public static final BlockModel WATER = REGISTRY.register(new CubeModel(Blocks.WATER)/*.setTint(0x3F76E4)*/.setAll(BlockTextures.WATER));
 	public static final BlockModel SAND = REGISTRY.register(new CubeModel(Blocks.SAND).setAll(BlockTextures.SAND));
+	public static final BlockModel GLASS = REGISTRY.register(new CubeModel(Blocks.GLASS).setAll(BlockTextures.GLASS));
 	
 	public static void init()
 	{

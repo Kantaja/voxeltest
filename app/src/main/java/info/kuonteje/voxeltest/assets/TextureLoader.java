@@ -17,6 +17,7 @@ import org.lwjgl.system.MemoryUtil;
 import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.console.Cvar;
 import info.kuonteje.voxeltest.console.CvarI64;
+import info.kuonteje.voxeltest.data.objects.BlockTextures;
 import info.kuonteje.voxeltest.render.ITextureProvider;
 import info.kuonteje.voxeltest.render.Texture;
 import info.kuonteje.voxeltest.util.MathUtil;
@@ -75,13 +76,16 @@ public class TextureLoader
 	
 	public static final ITextureProvider MISSING_PROVIDER = (domain, id) ->
 	{
-		ByteBuffer buffer = MemoryUtil.memAlloc(32 * 32 * 4);
+		int blockTextureSize = BlockTextures.getBlockTextureSize();
+		int halfShift = (int)BlockTextures.rLog2BlockTextureSize.get() - 1;
 		
-		for(int y = 0; y < 32; y++)
+		ByteBuffer buffer = MemoryUtil.memAlloc(blockTextureSize * blockTextureSize * 4);
+		
+		for(int y = 0; y < blockTextureSize; y++)
 		{
-			for(int x = 0; x < 32; x++)
+			for(int x = 0; x < blockTextureSize; x++)
 			{
-				boolean magenta = (x >> 4 == 0) == (y >> 4 == 0);
+				boolean magenta = (x >> halfShift == 0) == (y >> halfShift == 0);
 				
 				buffer.put((byte)(magenta ? 0xFF : 0x00));
 				buffer.put((byte)0x00);
@@ -90,7 +94,7 @@ public class TextureLoader
 			}
 		}
 		
-		return new ITextureProvider.TextureData(32, 32, buffer.flip());
+		return new ITextureProvider.TextureData(blockTextureSize, blockTextureSize, buffer.flip());
 	};
 	
 	public static Texture loadTexture(String domain, String id, ITextureProvider provider, int mipmapBase)

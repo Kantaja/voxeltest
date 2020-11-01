@@ -14,6 +14,7 @@ public class Blocks
 	public static final Block GRASS = REGISTRY.register(new Block("grass"));
 	public static final TransparentBlock WATER = REGISTRY.register(new TransparentBlock("water"));
 	public static final Block SAND = REGISTRY.register(new Block("sand"));
+	public static final TransparentBlock GLASS = REGISTRY.register(new TransparentBlock("glass"));
 	
 	public static void init()
 	{

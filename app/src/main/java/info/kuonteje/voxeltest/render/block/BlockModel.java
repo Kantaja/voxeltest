@@ -7,7 +7,6 @@ import java.nio.IntBuffer;
 import info.kuonteje.voxeltest.data.EntryId;
 import info.kuonteje.voxeltest.data.RegistryEntry;
 import info.kuonteje.voxeltest.render.IRenderable;
-import info.kuonteje.voxeltest.render.ModelUtil;
 
 public abstract class BlockModel extends RegistryEntry<BlockModel>
 {

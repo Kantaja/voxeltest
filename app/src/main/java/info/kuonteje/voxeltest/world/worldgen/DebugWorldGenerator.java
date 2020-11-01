@@ -3,7 +3,7 @@ package info.kuonteje.voxeltest.world.worldgen;
 import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.world.Chunk;
 
-public class WorldGeneratorDebug implements IWorldGenerator
+public class DebugWorldGenerator implements IWorldGenerator
 {
 	@Override
 	public void fillChunk(Chunk chunk)

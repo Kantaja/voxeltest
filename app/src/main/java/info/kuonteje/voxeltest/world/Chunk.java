@@ -98,27 +98,38 @@ public class Chunk
 	
 	public void setBlock(int x, int y, int z, Block block)
 	{
+		int storageIdx = (x << 10) | (z << 5) | y;
+		
 		if(block != null)
 		{
-			if(x < minX) minX = x;
-			if(x > maxX) maxX = x;
-			
-			if(y < minY) minY = y;
-			if(y > maxY) maxY = y;
-			
-			if(z < minZ) minZ = z;
-			if(z > maxZ) maxZ = z;
-			
-			blockCount++;
+			if(blocks[storageIdx] == 0)
+			{
+				if(x < minX) minX = x;
+				if(x > maxX) maxX = x;
+				
+				if(y < minY) minY = y;
+				if(y > maxY) maxY = y;
+				
+				if(z < minZ) minZ = z;
+				if(z > maxZ) maxZ = z;
+				
+				blockCount++;
+			}
 		}
+		else if(blocks[storageIdx] != 0) blockCount--; // eventually I'll fix aabbs
 		
-		blocks[(x << 10) | (z << 5) | y] = block == null ? 0 : (short)DefaultRegistries.BLOCKS.getIdx(block);
+		blocks[storageIdx] = block == null ? 0 : (short)DefaultRegistries.BLOCKS.getIdx(block);
 		setDirty();
 	}
 	
-	Block getBlock(int x, int y, int z)
+	public int getBlockIdx(int x, int y, int z)
 	{
-		return DefaultRegistries.BLOCKS.getByIdx(blocks[(x << 10) | (z << 5) | y] & 0xFFFF);
+		return (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) ? 0 : blocks[(x << 10) | (z << 5) | y] & 0xFFFF;
+	}
+	
+	public Block getBlock(int x, int y, int z)
+	{
+		return DefaultRegistries.BLOCKS.getByIdx(getBlockIdx(x, y, z));
 	}
 	
 	void tick()
@@ -318,6 +329,11 @@ public class Chunk
 	public IRenderable transparent()
 	{
 		return transparent;
+	}
+	
+	public boolean empty()
+	{
+		return blockCount == 0;
 	}
 	
 	void destroy()

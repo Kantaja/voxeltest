@@ -40,7 +40,7 @@ public class World implements Ticks.ITickHandler
 		{
 			for(int z = -8; z < 8; z++)
 			{
-				for(int y = -2; y <= 4; y++)
+				for(int y = -4; y <= 2; y++)
 				{
 					final int fx = x;
 					final int fy = y;
