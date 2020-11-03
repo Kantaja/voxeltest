@@ -1,15 +1,16 @@
-package info.kuonteje.voxeltest.world.worldgen;
+package info.kuonteje.voxeltest.world.worldgen.defaultGenerator;
 
 import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.world.Chunk;
+import info.kuonteje.voxeltest.world.worldgen.IChunkProcessor;
 
-public class DefaultChunkWaterer implements IChunkWaterer
+public class DefaultChunkWaterer implements IChunkProcessor
 {
 	private static final int GRASS = DefaultRegistries.BLOCKS.getIdx(Blocks.GRASS);
 	
 	@Override
-	public void addWater(Chunk chunk)
+	public void processChunk(Chunk chunk)
 	{
 		int chunkY = chunk.getPos().y();
 		

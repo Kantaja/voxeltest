@@ -20,9 +20,6 @@ import org.joml.Vector3d;
 import info.kuonteje.voxeltest.console.Console;
 import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.RegistryManager;
-import info.kuonteje.voxeltest.data.objects.BlockModels;
-import info.kuonteje.voxeltest.data.objects.BlockTextures;
-import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.render.Camera;
 import info.kuonteje.voxeltest.render.Renderer;
 import info.kuonteje.voxeltest.render.Window;
@@ -76,11 +73,6 @@ public class VoxelTest
 			
 			DefaultRegistries.init();
 			
-			Blocks.init();
-			BlockTextures.init();
-			BlockModels.init();
-			// Biomes.init();
-			
 			RegistryManager.freezeAll();
 			
 			renderer = new Renderer(CONSOLE, 1366, 768);
@@ -125,7 +117,7 @@ public class VoxelTest
 					
 					window.setTitle("VoxelTest (" + (Math.round(frames / accum * 100.0) / 100.0) + " fps), camera position ("
 							+ MathUtil.fastFloor(pos.x) + ", " + MathUtil.fastFloor(pos.y) + ", " + MathUtil.fastFloor(pos.z) + "), in chunk ("
-							+ chunkX + ", " + chunkY + ", " + chunkZ + ") - " + (world.getChunk(new ChunkPosition(chunkX, chunkY, chunkZ), false) == null ? "not loaded" : "loaded"));
+							+ chunkX + ", " + chunkY + ", " + chunkZ + ") - " + world.getChunkStatus(new ChunkPosition(chunkX, chunkY, chunkZ)).toString());
 					
 					frames = 0;
 					accum = 0.0;

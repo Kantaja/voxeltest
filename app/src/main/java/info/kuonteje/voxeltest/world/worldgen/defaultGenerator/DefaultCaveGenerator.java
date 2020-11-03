@@ -1,4 +1,4 @@
-package info.kuonteje.voxeltest.world.worldgen.caves;
+package info.kuonteje.voxeltest.world.worldgen.defaultGenerator;
 
 import info.kuonteje.repack.fastnoise.CellularDistanceFunction;
 import info.kuonteje.repack.fastnoise.CellularReturnType;
@@ -8,9 +8,9 @@ import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.util.MathUtil;
 import info.kuonteje.voxeltest.world.Chunk;
-import info.kuonteje.voxeltest.world.worldgen.DefaultWorldGenerator;
+import info.kuonteje.voxeltest.world.worldgen.IChunkProcessor;
 
-public class DefaultCaveGenerator implements ICaveGenerator
+public class DefaultCaveGenerator implements IChunkProcessor
 {
 	private static final int WATER = DefaultRegistries.BLOCKS.getIdx(Blocks.WATER);
 	
@@ -41,13 +41,13 @@ public class DefaultCaveGenerator implements ICaveGenerator
 	}
 	
 	@Override
-	public void generateCaves(Chunk chunk)
+	public void processChunk(Chunk chunk)
 	{
 		if(chunk.empty()) return;
 		
-		double baseX = chunk.getPos().x() * 32;
-		double baseY = chunk.getPos().y() * 32;
-		double baseZ = chunk.getPos().z() * 32;
+		double baseX = chunk.getPos().worldX();
+		double baseY = chunk.getPos().worldY();
+		double baseZ = chunk.getPos().worldZ();
 		
 		float[][][] noise = new float[9][9][10];
 		
@@ -61,6 +61,7 @@ public class DefaultCaveGenerator implements ICaveGenerator
 					double realY = baseY + y * 4.0;
 					double realZ = baseZ + z * 4.0;
 					
+					// offsets are random primes
 					double warpX = warpNoise.getNoise(realX + 109.0, realZ + 73.0) * 8.0;
 					double warpY = warpNoise.getNoise(realX - 31.0, realZ + 53.0) * 8.0;
 					double warpZ = warpNoise.getNoise(realX - 229.0, realZ - 181.0) * 8.0;
@@ -105,7 +106,7 @@ public class DefaultCaveGenerator implements ICaveGenerator
 					if(chunk.getBlockIdx(x, y, z) != 0)
 					{
 						// TODO chunk boundaries
-						if(DefaultWorldGenerator.interpNoise(noise, x, y, z) > THRESHOLD && chunk.getBlockIdx(x, y, z) != WATER
+						if(DefaultChunkGenerator.interpNoise(noise, x, y, z) > THRESHOLD && chunk.getBlockIdx(x, y, z) != WATER
 								&& chunk.getBlockIdx(x + 1, y, z) != WATER && chunk.getBlockIdx(x - 1, y, z) != WATER
 								&& chunk.getBlockIdx(x, y, z + 1) != WATER && chunk.getBlockIdx(x, y, z - 1) != WATER
 								&& chunk.getBlockIdx(x, y + 1, z) != WATER && chunk.getBlockIdx(x, y - 1, z) != WATER) chunk.setBlock(x, y, z, null);

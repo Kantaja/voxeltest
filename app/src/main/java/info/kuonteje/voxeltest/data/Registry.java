@@ -87,7 +87,7 @@ public class Registry<T extends RegistryEntry<T>> implements Iterable<T>
 	
 	public int getIdx(T obj)
 	{
-		return idToIdx.getOrDefault(obj.getId(), 0);
+		return obj == null ? 0 : idToIdx.getOrDefault(obj.getId(), 0);
 	}
 	
 	public T getByIdx(int idx)
@@ -97,7 +97,7 @@ public class Registry<T extends RegistryEntry<T>> implements Iterable<T>
 	
 	public T getById(EntryId id)
 	{
-		return idToObj.getOrDefault(id, defaultValue);
+		return id == null ? defaultValue : idToObj.getOrDefault(id, defaultValue);
 	}
 	
 	public boolean isRegistered(EntryId id)
@@ -140,6 +140,11 @@ public class Registry<T extends RegistryEntry<T>> implements Iterable<T>
 				}
 			}
 		}
+	}
+	
+	public int maxIdx()
+	{
+		return maxIdx;
 	}
 	
 	public int size()

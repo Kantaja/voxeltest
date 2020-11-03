@@ -2,7 +2,7 @@ package info.kuonteje.voxeltest.world.worldgen;
 
 import info.kuonteje.voxeltest.world.Chunk;
 
-public interface IWorldGenerator
+public interface IChunkProcessor
 {
-	void fillChunk(Chunk chunk);
+	void processChunk(Chunk chunk);
 }

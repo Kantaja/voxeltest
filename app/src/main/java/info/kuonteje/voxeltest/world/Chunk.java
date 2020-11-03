@@ -17,7 +17,7 @@ import info.kuonteje.voxeltest.render.block.BlockModel;
 import it.unimi.dsi.fastutil.ints.IntAVLTreeSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 
-public class Chunk
+public final class Chunk implements IChunk
 {
 	private final World world;
 	private final IChunkPosition pos;
@@ -78,17 +78,31 @@ public class Chunk
 		this.world = world;
 		this.pos = pos.immutable();
 		
-		this.offset = new Vector3i(pos.x() * 32, pos.y() * 32, pos.z() * 32);
+		this.offset = new Vector3i(pos.worldX(), pos.worldY(), pos.worldZ());
 	}
 	
+	@Override
 	public World getWorld()
 	{
 		return world;
 	}
 	
+	@Override
 	public IChunkPosition getPos()
 	{
 		return pos;
+	}
+	
+	@Override
+	public int getBlockIdx(int x, int y, int z)
+	{
+		return (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) ? 0 : blocks[storageIdx(x, y, z)] & 0xFFFF;
+	}
+	
+	@Override
+	public Block getBlock(int x, int y, int z)
+	{
+		return DefaultRegistries.BLOCKS.getByIdx(getBlockIdx(x, y, z));
 	}
 	
 	public void setDirty()
@@ -96,11 +110,14 @@ public class Chunk
 		dirty = true;
 	}
 	
-	public void setBlock(int x, int y, int z, Block block)
+	@Override
+	public void setBlockIdx(int x, int y, int z, int idx)
 	{
-		int storageIdx = (x << 10) | (z << 5) | y;
+		int storageIdx = storageIdx(x, y, z);
 		
-		if(block != null)
+		if(blocks[storageIdx] == idx) return;
+		
+		if(idx != 0)
 		{
 			if(blocks[storageIdx] == 0)
 			{
@@ -116,20 +133,16 @@ public class Chunk
 				blockCount++;
 			}
 		}
-		else if(blocks[storageIdx] != 0) blockCount--; // eventually I'll fix aabbs
+		else blockCount--; // eventually I'll fix aabbs
 		
-		blocks[storageIdx] = block == null ? 0 : (short)DefaultRegistries.BLOCKS.getIdx(block);
+		blocks[storageIdx] = idx > DefaultRegistries.BLOCKS.maxIdx() ? 0 : (short)idx;
 		setDirty();
 	}
 	
-	public int getBlockIdx(int x, int y, int z)
+	@Override
+	public void setBlock(int x, int y, int z, Block block)
 	{
-		return (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) ? 0 : blocks[(x << 10) | (z << 5) | y] & 0xFFFF;
-	}
-	
-	public Block getBlock(int x, int y, int z)
-	{
-		return DefaultRegistries.BLOCKS.getByIdx(getBlockIdx(x, y, z));
+		setBlockIdx(x, y, z, DefaultRegistries.BLOCKS.getIdx(block));
 	}
 	
 	void tick()
@@ -162,7 +175,7 @@ public class Chunk
 			{
 				for(int y = 0; y < 32; y++)
 				{
-					int storageIdx = (x << 10) | (z << 5) | y;
+					int storageIdx = storageIdx(x, y, z);
 					int idx = blocks[storageIdx] & 0xFFFF;
 					
 					if(idx != 0)
@@ -194,7 +207,7 @@ public class Chunk
 		
 		renderer.setTriangles(opaqueFaces * 2, transparentFaces * 2);
 		
-		//if(opaqueFaces + transparentFaces > 0)
+		if(opaqueFaces + transparentFaces > 0)
 		{
 			FloatBuffer vertexBuf = renderer.getVertexBuffer();
 			FloatBuffer texCoordBuf = renderer.getTexCoordBuffer();
@@ -208,7 +221,7 @@ public class Chunk
 				{
 					for(int y = 0; y < 32; y++)
 					{
-						int storageIdx = (x << 10) | (z << 5) | y;
+						int storageIdx = storageIdx(x, y, z);
 						
 						if(!transparentIndices.contains(storageIdx))
 						{
@@ -242,7 +255,7 @@ public class Chunk
 				{
 					for(int y = 0; y < 32; y++)
 					{
-						int storageIdx = (x << 10) | (z << 5) | y;
+						int storageIdx = storageIdx(x, y, z);
 						int idx = blocks[storageIdx] & 0xFFFF;
 						
 						if(idx != 0 && transparentIndices.contains(storageIdx))
@@ -291,34 +304,37 @@ public class Chunk
 	
 	private boolean isTransparent(Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
 	{
-		return (x < 0 && (w == null || isTransparentBlock(w.blocks[((x + 32) << 10) | (z << 5) | y], w.getPos(), x, y, z)))
-				|| (x >= 32 && (e == null || isTransparentBlock(e.blocks[((x - 32) << 10) | (z << 5) | y], e.getPos(), x, y, z)))
-				|| (y < 0 && (d == null || isTransparentBlock(d.blocks[(x << 10) | (z << 5) | (y + 32)], d.getPos(), x, y, z)))
-				|| (y >= 32 && (u == null || isTransparentBlock(u.blocks[(x << 10) | (z << 5) | (y - 32)], u.getPos(), x, y, z)))
-				|| (z < 0 && (n == null || isTransparentBlock(n.blocks[(x << 10) | ((z + 32) << 5) | y], n.getPos(), x, y, z)))
-				|| (z >= 32 && (s == null || isTransparentBlock(s.blocks[(x << 10) | ((z - 32) << 5) | y], s.getPos(), x, y, z)))
-				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTransparentBlock(blocks[(x << 10) | (z << 5) | y], getPos(), x, y, z));
+		return (x < 0 && (w == null || isTransparentBlock(w.blocks[storageIdx(x + 32, y, z)], w.getPos(), x, y, z)))
+				|| (x >= 32 && (e == null || isTransparentBlock(e.blocks[storageIdx(x - 32, y, z)], e.getPos(), x, y, z)))
+				|| (y < 0 && (d == null || isTransparentBlock(d.blocks[storageIdx(x, y + 32, z)], d.getPos(), x, y, z)))
+				|| (y >= 32 && (u == null || isTransparentBlock(u.blocks[storageIdx(x, y - 32, z)], u.getPos(), x, y, z)))
+				|| (z < 0 && (n == null || isTransparentBlock(n.blocks[storageIdx(x, y, z + 32)], n.getPos(), x, y, z)))
+				|| (z >= 32 && (s == null || isTransparentBlock(s.blocks[storageIdx(x, y, z - 32)], s.getPos(), x, y, z)))
+				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTransparentBlock(blocks[storageIdx(x, y, z)], getPos(), x, y, z));
 	}
 	
 	private boolean isTransparentNeighborTransparent(int block, Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
 	{
-		return (x < 0 && (w == null || isTransparentFaceVisible(block, w.blocks[((x + 32) << 10) | (z << 5) | y], w.getPos(), x, y, z)))
-				|| (x >= 32 && (e == null || isTransparentFaceVisible(block, e.blocks[((x - 32) << 10) | (z << 5) | y], e.getPos(), x, y, z)))
-				|| (y < 0 && (d == null || isTransparentFaceVisible(block, d.blocks[(x << 10) | (z << 5) | (y + 32)], d.getPos(), x, y, z)))
-				|| (y >= 32 && (u == null || isTransparentFaceVisible(block, u.blocks[(x << 10) | (z << 5) | (y - 32)], u.getPos(), x, y, z)))
-				|| (z < 0 && (n == null || isTransparentFaceVisible(block, n.blocks[(x << 10) | ((z + 32) << 5) | y], n.getPos(), x, y, z)))
-				|| (z >= 32 && (s == null || isTransparentFaceVisible(block, s.blocks[(x << 10) | ((z - 32) << 5) | y], s.getPos(), x, y, z)))
-				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTransparentFaceVisible(block, blocks[(x << 10) | (z << 5) | y], getPos(), x, y, z));
+		return (x < 0 && (w == null || isTransparentFaceVisible(block, w.blocks[storageIdx(x + 32, y, z)], w.getPos(), x, y, z)))
+				|| (x >= 32 && (e == null || isTransparentFaceVisible(block, e.blocks[storageIdx(x - 32, y, z)], e.getPos(), x, y, z)))
+				|| (y < 0 && (d == null || isTransparentFaceVisible(block, d.blocks[storageIdx(x, y + 32, z)], d.getPos(), x, y, z)))
+				|| (y >= 32 && (u == null || isTransparentFaceVisible(block, u.blocks[storageIdx(x, y - 32, z)], u.getPos(), x, y, z)))
+				|| (z < 0 && (n == null || isTransparentFaceVisible(block, n.blocks[storageIdx(x, y, z + 32)], n.getPos(), x, y, z)))
+				|| (z >= 32 && (s == null || isTransparentFaceVisible(block, s.blocks[storageIdx(x, y, z - 32)], s.getPos(), x, y, z)))
+				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTransparentFaceVisible(block, blocks[storageIdx(x, y, z)], getPos(), x, y, z));
 	}
 	
 	private boolean isTransparentBlock(int idx, IChunkPosition chunk, int x, int y, int z)
 	{
-		return idx == 0 || (DefaultRegistries.BLOCKS.getByIdx(idx) instanceof ITransparentBlock b && b.isTransparent(world, chunk.x() * 32 + x, chunk.y() * 32 + y, chunk.z() * 32 + z));
+		return idx == 0 || (DefaultRegistries.BLOCKS.getByIdx(idx) instanceof ITransparentBlock b && b.isTransparent(world, chunk.worldX() + x, chunk.worldY() + y, chunk.worldZ() + z));
 	}
 	
 	private boolean isTransparentFaceVisible(int block, int neighbor, IChunkPosition neighborChunk, int nx, int ny, int nz)
 	{
-		return block != neighbor && isTransparentBlock(neighbor, neighborChunk, nx, ny, nz);
+		if(neighbor == 0) return true;
+		if(DefaultRegistries.BLOCKS.getByIdx(neighbor) instanceof ITransparentBlock b) return block != neighbor || !b.blocksAdjacentFaces(world, neighborChunk.worldX() + nx, neighborChunk.worldY() + ny, neighborChunk.worldZ() + nz);
+		
+		return false;
 	}
 	
 	public IRenderable opaque()
@@ -329,6 +345,11 @@ public class Chunk
 	public IRenderable transparent()
 	{
 		return transparent;
+	}
+	
+	public int blockCount()
+	{
+		return blockCount;
 	}
 	
 	public boolean empty()

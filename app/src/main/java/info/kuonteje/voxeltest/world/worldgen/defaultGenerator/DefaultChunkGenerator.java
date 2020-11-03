@@ -1,4 +1,4 @@
-package info.kuonteje.voxeltest.world.worldgen;
+package info.kuonteje.voxeltest.world.worldgen.defaultGenerator;
 
 import info.kuonteje.repack.fastnoise.CellularDistanceFunction;
 import info.kuonteje.repack.fastnoise.CellularReturnType;
@@ -9,12 +9,13 @@ import info.kuonteje.repack.fastnoise.NoiseType;
 import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.util.MathUtil;
 import info.kuonteje.voxeltest.world.Chunk;
+import info.kuonteje.voxeltest.world.worldgen.IChunkProcessor;
 
-public class DefaultWorldGenerator implements IWorldGenerator
+public class DefaultChunkGenerator implements IChunkProcessor
 {
 	private final FastNoiseLite terrainNoise, biomeNoise;
 	
-	public DefaultWorldGenerator(long seed)
+	public DefaultChunkGenerator(long seed)
 	{
 		int terrainSeed = (int)(seed & 0xFFFFFFFF);
 		int biomeSeed = (int)((seed >> 32) & 0xFFFFFFFF);
@@ -40,7 +41,7 @@ public class DefaultWorldGenerator implements IWorldGenerator
 	}
 	
 	@Override
-	public void fillChunk(Chunk chunk)
+	public void processChunk(Chunk chunk)
 	{
 		double baseX = chunk.getPos().x() * 32;
 		double baseY = chunk.getPos().y() * 32;

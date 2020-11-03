@@ -8,4 +8,9 @@ public interface ITransparentBlock
 	{
 		return true;
 	}
+	
+	default boolean blocksAdjacentFaces(World world, int x, int y, int z)
+	{
+		return true;
+	}
 }

@@ -3,10 +3,10 @@ package info.kuonteje.voxeltest.world.worldgen;
 import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.world.Chunk;
 
-public class DebugWorldGenerator implements IWorldGenerator
+public class DebugChunkGenerator implements IChunkProcessor
 {
 	@Override
-	public void fillChunk(Chunk chunk)
+	public void processChunk(Chunk chunk)
 	{
 		if(chunk.getPos().y() == 2) fillSurfaceChunk(chunk);
 		else if(chunk.getPos().y() < 2) fillUndergroundChunk(chunk);
