@@ -49,4 +49,10 @@ public class MutableChunkPosition implements IChunkPosition
 	{
 		return other instanceof IChunkPosition pos && x == pos.x() && y == pos.y() && z == pos.z();
 	}
+	
+	@Override
+	public String toString()
+	{
+		return "(" + x() + ", " + y() + ", " + z() + ")";
+	}
 }

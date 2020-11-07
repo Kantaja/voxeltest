@@ -115,7 +115,7 @@ public class VoxelTest
 					int chunkY = MathUtil.fastFloor(pos.y / 32.0);
 					int chunkZ = MathUtil.fastFloor(pos.z / 32.0);
 					
-					window.setTitle("VoxelTest (" + (Math.round(frames / accum * 100.0) / 100.0) + " fps), camera position ("
+					window.setTitle("VoxelTest (" + (Math.round(frames / accum * 100.0) / 100.0) + " fps, " + (Math.round(accum / frames * 100000.0) / 100.0) + " ms), camera position ("
 							+ MathUtil.fastFloor(pos.x) + ", " + MathUtil.fastFloor(pos.y) + ", " + MathUtil.fastFloor(pos.z) + "), in chunk ("
 							+ chunkX + ", " + chunkY + ", " + chunkZ + ") - " + world.getChunkStatus(new ChunkPosition(chunkX, chunkY, chunkZ)).toString());
 					
@@ -133,7 +133,8 @@ public class VoxelTest
 				
 				world.render(renderer);
 				
-				renderer.endFrame();
+				renderer.completeFrame();
+				
 				frames++;
 				window.update();
 			}

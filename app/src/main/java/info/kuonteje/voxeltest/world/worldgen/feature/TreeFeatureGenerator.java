@@ -36,6 +36,8 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 					{
 						if(idx == GRASS && random.nextInt(TREE_CHANCE) == 0)
 							generate(world, random, chunk.getPos().worldX() + x, chunk.getPos().worldY() + y + 1, chunk.getPos().worldZ() + z);
+						
+						continue;
 					}
 				}
 			}

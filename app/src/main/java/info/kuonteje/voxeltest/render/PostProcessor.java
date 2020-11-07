@@ -15,13 +15,13 @@ public class PostProcessor
 	
 	private int width, height;
 	
-	private Framebuffer front, back = null, a, b;
+	private ForwardFramebuffer front, back = null, a, b;
 	
 	private List<ShaderProgram> shaders;
 	
 	private ShaderProgram ssaoShader;
 	
-	public PostProcessor(Console console, Framebuffer front, int width, int height)
+	public PostProcessor(Console console, ForwardFramebuffer front, int width, int height)
 	{
 		rSsao = console.cvars().getCvarI64C("r_ssao", 1L, Cvar.Flags.CONFIG, CvarI64.BOOL_TRANSFORMER, (n, o) -> ssao = n != 0L);
 		ssao = rSsao.getAsBool();
@@ -30,24 +30,24 @@ public class PostProcessor
 		
 		shaders = Collections.synchronizedList(new ObjectArrayList<>());
 		
-		ssaoShader = Framebuffer.createFbShader("ssao");
+		ssaoShader = ForwardFramebuffer.createFbShader("ssao");
 	}
 	
-	public void resize(Framebuffer front, int width, int height)
+	public void resize(ForwardFramebuffer front, int width, int height)
 	{
 		if(this.width != width || this.height != height)
 		{
 			this.front = front;
 			
 			if(back != null) back.destroy();
-			back = new Framebuffer(width, height);
+			back = new ForwardFramebuffer(null, width, height);
 			
 			this.width = width;
 			this.height = height;
 		}
 	}
 	
-	public Framebuffer run()
+	public ForwardFramebuffer run()
 	{
 		a = front;
 		b = back;
@@ -62,9 +62,9 @@ public class PostProcessor
 	private void runStep(ShaderProgram shader)
 	{
 		b.bind();
-		a.draw(shader);
+		a.draw(shader, front.getDepthTexture());
 		
-		Framebuffer tmp = a;
+		ForwardFramebuffer tmp = a;
 		a = b;
 		b = tmp;
 	}

@@ -183,6 +183,14 @@ public class Camera implements Ticks.ITickHandler
 		}
 	}
 	
+	public Vector3d getInterpPosition(Vector3d dest)
+	{
+		synchronized(transformLock)
+		{
+			return dest.set(interpPosition);
+		}
+	}
+	
 	public Vector3d getRotation(Vector3d dest)
 	{
 		synchronized(transformLock)

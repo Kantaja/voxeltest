@@ -1,14 +1,22 @@
 package info.kuonteje.voxeltest.render;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL20.*;
-import static org.lwjgl.opengl.GL43.*;
-import static org.lwjgl.opengl.GL45.*;
+import static org.lwjgl.opengl.GL11C.*;
+import static org.lwjgl.opengl.GL20C.*;
+import static org.lwjgl.opengl.GL30C.*;
+import static org.lwjgl.opengl.GL43C.*;
+import static org.lwjgl.opengl.GL45C.*;
 
 import java.nio.FloatBuffer;
+import java.util.Comparator;
+import java.util.NavigableSet;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Phaser;
 
 import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
+import org.joml.Vector3d;
+import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.NVXGPUMemoryInfo;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
@@ -22,6 +30,24 @@ import info.kuonteje.voxeltest.data.objects.BlockTextures;
 
 public class Renderer
 {
+	// THIS INTENTIONALLY VIOLATES THE CONTRACT OF COMPARATOR
+	// If compare(a, b) returned 0 for a != b, only one object with the same distance from the camera would be rendered
+	// in the case that two equal-comparing but different objects are compared again there is no issue with switching the order, this is only used for maintaining a skip list
+	private static class RenderableComparator implements Comparator<IRenderable>
+	{
+		@Override
+		public int compare(IRenderable a, IRenderable b)
+		{
+			int cmp = Double.compare(a.distanceSqToCamera(), b.distanceSqToCamera());
+			
+			if(cmp == 0) return a == b ? 0 : -1;
+			else return cmp;
+		}
+	}
+	
+	private static final Comparator<IRenderable> solidComparator = new RenderableComparator();
+	private static final Comparator<IRenderable> translucentComparator = solidComparator.reversed();
+	
 	public final CvarF64 rClearRed, rClearGreen, rClearBlue, rClearAlpha;
 	private float clearRed, clearGreen, clearBlue, clearAlpha;
 	
@@ -34,7 +60,10 @@ public class Renderer
 	private volatile boolean customAspect;
 	private volatile float aspectHor, aspectVer;
 	
-	private Framebuffer framebuffer = null;
+	private Texture depthTexture = null;
+	
+	private GBuffer solidGBuffer = null;
+	private ForwardFramebuffer framebuffer = null;
 	
 	private final PostProcessor postProcessor;
 	
@@ -44,6 +73,8 @@ public class Renderer
 	private Camera previousCamera = null;
 	private volatile Camera currentCamera = null;
 	
+	private final Vector3d cameraPosition = new Vector3d();
+	
 	private final Matrix4f perspective = new Matrix4f();
 	private volatile boolean updatePerspective = true;
 	
@@ -51,9 +82,13 @@ public class Renderer
 	
 	private final FrustumIntersection cullingFrustum = new FrustumIntersection();
 	
-	private final ShaderProgram blockShader;
+	private final ShaderProgram solidShader, translucentShader;
 	
-	//private final int boxVao;
+	private final Phaser solidPhaser = new Phaser(1);
+	private final Phaser translucentPhaser = new Phaser(1);
+	
+	private final NavigableSet<IRenderable> solidObjects = new ConcurrentSkipListSet<>(solidComparator);
+	private final NavigableSet<IRenderable> translucentObjects = new ConcurrentSkipListSet<>(translucentComparator);
 	
 	public Renderer(Console console, int width, int height)
 	{
@@ -86,7 +121,24 @@ public class Renderer
 		
 		postProcessor = new PostProcessor(console, framebuffer, width, height);
 		
-		blockShader = new ShaderProgram("block");
+		solidShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("solid_defer").create();
+		translucentShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("block").create();
+		
+		// TODO AMD/intel alternatives
+		// do intel gpus even support 4.5?
+		// are debug features even useful to port?
+		if(GL.getCapabilities().GL_NVX_gpu_memory_info) console.addCommand("r_vram", (c, a) -> VoxelTest.addRenderHook(() ->
+		{
+			int total = glGetInteger(NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX) / 1024;
+			int available = glGetInteger(NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_TOTAL_AVAILABLE_MEMORY_NVX) / 1024;
+			int current = glGetInteger(NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX) / 1024;
+			
+			int evictions = glGetInteger(NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_EVICTION_COUNT_NVX) / 1024;
+			int totalEvicted = glGetInteger(NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_EVICTED_MEMORY_NVX) / 1024;
+			
+			System.out.println((total - current) + " / " + total + " MB dedicated vram used (" + current + " MB free, " + available + " MB available)");
+			System.out.println(totalEvicted + " MB evicted in " + evictions + " evictions");
+		}), 0);
 	}
 	
 	private void setupOpenGl()
@@ -111,6 +163,7 @@ public class Renderer
 		glCullFace(GL_BACK);
 		
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glEnable(GL_BLEND);
 	}
 	
 	private void dirtyPerspective()
@@ -161,31 +214,95 @@ public class Renderer
 		
 		updatePerspective = false;
 		
-		framebuffer.bind();
-		
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		camera.getInterpPosition(cameraPosition);
 		
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_CULL_FACE);
 		
+		solidGBuffer.bind();
+		solidShader.bind();
+		
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
 		BlockTextures.getArray().bind(ChunkShaderBindings.TEX_SAMPLERS);
-		blockShader.bind();
 		
 		uploadMatrix(ChunkShaderBindings.PV_MATRIX, pv);
-		//uploadMatrix(BlockShaderBindings.MODEL_MATRIX, model);
+		glUniform1i(ChunkShaderBindings.BASE_TRIANGLE_ID, 0);
 	}
 	
-	public void render(IRenderable renderable)
+	// adding to the skip lists shows up as the biggest cpu time sink, but it's cheaper than adding to an array list then sorting it
+	public void renderSolid(IRenderable renderable)
 	{
-		if(renderable.shouldRender(cullingFrustum)) renderable.render();
+		solidPhaser.register();
+		
+		VoxelTest.getThreadPool().execute(() ->
+		{
+			if(renderable.shouldRender(cullingFrustum))
+			{
+				renderable.setCameraPosition(cameraPosition);
+				solidObjects.add(renderable);
+			}
+			
+			solidPhaser.arriveAndDeregister();
+		});
 	}
 	
-	public void endFrame()
+	public void renderTranslucent(IRenderable renderable)
 	{
+		translucentPhaser.register();
+		
+		VoxelTest.getThreadPool().execute(() ->
+		{
+			if(renderable.shouldRender(cullingFrustum))
+			{
+				renderable.setCameraPosition(cameraPosition);
+				translucentObjects.add(renderable);
+			}
+			
+			translucentPhaser.arriveAndDeregister();
+		});
+	}
+	
+	public void completeFrame()
+	{
+		IRenderable renderable;
+		
+		solidPhaser.arriveAndAwaitAdvance();
+		
+		while((renderable = solidObjects.pollFirst()) != null)
+		{
+			renderable.render();
+		}
+		
 		glDisable(GL_CULL_FACE);
 		glDisable(GL_DEPTH_TEST);
 		
-		Framebuffer front = postProcessor.run();
+		framebuffer.bind();
+		
+		glClear(GL_COLOR_BUFFER_BIT);
+		
+		solidGBuffer.draw();
+		
+		translucentShader.bind();
+		
+		BlockTextures.getArray().bind(ChunkShaderBindings.TEX_SAMPLERS);
+		
+		glEnable(GL_CULL_FACE);
+		glEnable(GL_DEPTH_TEST);
+		
+		uploadMatrix(ChunkShaderBindings.PV_MATRIX, pv);
+		
+		translucentPhaser.arriveAndAwaitAdvance();
+		
+		while((renderable = translucentObjects.pollFirst()) != null)
+		{
+			renderable.render();
+		}
+		
+		glDisable(GL_CULL_FACE);
+		glDisable(GL_DEPTH_TEST);
+		
+		ForwardFramebuffer front = postProcessor.run();
 		
 		front.unbind();
 		front.draw();
@@ -198,8 +315,14 @@ public class Renderer
 	{
 		if(width != this.width || height != this.height)
 		{
+			if(depthTexture != null) depthTexture.destroy();
+			depthTexture = createDepthTexture(width, height);
+			
+			if(solidGBuffer != null) solidGBuffer.destroy();
+			solidGBuffer = new GBuffer(depthTexture, width, height);
+			
 			if(framebuffer != null) framebuffer.destroy();
-			framebuffer = new Framebuffer(width, height);
+			framebuffer = new ForwardFramebuffer(depthTexture, width, height);
 			
 			glViewport(0, 0, width, height);
 			
@@ -212,6 +335,14 @@ public class Renderer
 			
 			System.out.println("Resized to " + width + "x" + height);
 		}
+	}
+	
+	private Texture createDepthTexture(int width, int height)
+	{
+		int texture = glCreateTextures(GL_TEXTURE_2D);
+		glTextureStorage2D(texture, 1, GL_DEPTH_COMPONENT32F, width, height);
+		
+		return Texture.wrap(width, height, texture);
 	}
 	
 	public Camera getCurrentCamera()

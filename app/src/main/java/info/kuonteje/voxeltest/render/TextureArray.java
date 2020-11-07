@@ -1,8 +1,8 @@
 package info.kuonteje.voxeltest.render;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL30.*;
-import static org.lwjgl.opengl.GL45.*;
+import static org.lwjgl.opengl.GL11C.*;
+import static org.lwjgl.opengl.GL30C.*;
+import static org.lwjgl.opengl.GL45C.*;
 
 import info.kuonteje.voxeltest.assets.AssetType;
 import info.kuonteje.voxeltest.assets.TextureLoader;

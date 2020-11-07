@@ -2,9 +2,9 @@ package info.kuonteje.voxeltest.block.tag;
 
 import info.kuonteje.voxeltest.world.World;
 
-public interface ITransparentBlock
+public interface ITranslucentBlock
 {
-	default boolean isTransparent(World world, int x, int y, int z)
+	default boolean hasTransparency(World world, int x, int y, int z)
 	{
 		return true;
 	}

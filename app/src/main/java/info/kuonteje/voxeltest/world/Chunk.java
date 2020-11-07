@@ -5,29 +5,37 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
 import org.joml.FrustumIntersection;
+import org.joml.Vector3d;
+import org.joml.Vector3dc;
 import org.joml.Vector3i;
 
 import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.block.Block;
-import info.kuonteje.voxeltest.block.tag.ITransparentBlock;
+import info.kuonteje.voxeltest.block.tag.ICutoutBlock;
+import info.kuonteje.voxeltest.block.tag.ITranslucentBlock;
 import info.kuonteje.voxeltest.data.DefaultRegistries;
+import info.kuonteje.voxeltest.render.ChunkRenderable;
 import info.kuonteje.voxeltest.render.ChunkRenderer;
 import info.kuonteje.voxeltest.render.IRenderable;
 import info.kuonteje.voxeltest.render.block.BlockModel;
+import info.kuonteje.voxeltest.util.ConcurrentTimer;
 import it.unimi.dsi.fastutil.ints.IntAVLTreeSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 
 public final class Chunk implements IChunk
 {
+	public static final ConcurrentTimer meshTimer = new ConcurrentTimer();
+	
 	private final World world;
 	private final IChunkPosition pos;
+	
+	private final Vector3dc center;
 	
 	private final Vector3i offset;
 	
 	private ChunkRenderer renderer = null;
 	
-	private boolean cachedShouldRender = false;
-	private final IRenderable opaque, transparent;
+	private final ChunkRenderable solid, translucent;
 	
 	private volatile boolean dirty = false;
 	
@@ -41,42 +49,21 @@ public final class Chunk implements IChunk
 	
 	public Chunk(World world, IChunkPosition pos)
 	{
-		VoxelTest.addRenderHook(() -> renderer = new ChunkRenderer());
+		solid = new ChunkRenderable(this, true);
+		translucent = new ChunkRenderable(this, false);
 		
-		opaque = new IRenderable()
+		VoxelTest.addRenderHook(() ->
 		{
-			@Override
-			public boolean shouldRender(FrustumIntersection frustum)
-			{
-				return cachedShouldRender = blockCount > 0 && renderer != null && renderer.getTotalTriangles() > 0
-						&& frustum.testAab(minX + offset.x, minY + offset.y, minZ + offset.z, maxX + offset.x + 1.0F, maxY + offset.y + 1.0F, maxZ + offset.z + 1.0F);
-			}
+			renderer = new ChunkRenderer();
 			
-			@Override
-			public void render()
-			{
-				renderer.renderOpaque();
-			}
-		};
-		
-		transparent = new IRenderable()
-		{
-			@Override
-			public boolean shouldRender(FrustumIntersection frustum)
-			{
-				// opaque always runs first
-				return cachedShouldRender;
-			}
-			
-			@Override
-			public void render()
-			{
-				renderer.renderTransparent();
-			}
-		};
+			solid.setRenderer(renderer);
+			translucent.setRenderer(renderer);
+		});
 		
 		this.world = world;
 		this.pos = pos.immutable();
+		
+		this.center = new Vector3d(pos.worldX() + 16.0, pos.worldY() + 16.0, pos.worldZ() + 16.0);
 		
 		this.offset = new Vector3i(pos.worldX(), pos.worldY(), pos.worldZ());
 	}
@@ -149,11 +136,13 @@ public final class Chunk implements IChunk
 	{
 		if(dirty && renderer != null)
 		{
-			VoxelTest.getThreadPool().execute(() -> regenMesh());
+			VoxelTest.getThreadPool().execute(() -> meshTimer.time(() -> regenMesh()));
 			dirty = false;
 		}
 	}
 	
+	// TODO optimize, this takes 30 ms
+	// huge capacity for it, but not urgent
 	private void regenMesh()
 	{
 		MutableChunkPosition adj = new MutableChunkPosition(0, 0, 0);
@@ -165,9 +154,9 @@ public final class Chunk implements IChunk
 		Chunk s = world.getLoadedChunk(adj.set(pos.x(), pos.y(), pos.z() + 1).immutable());
 		Chunk n = world.getLoadedChunk(adj.set(pos.x(), pos.y(), pos.z() - 1).immutable());
 		
-		final IntSet transparentIndices = new IntAVLTreeSet();
+		final IntSet translucentIndices = new IntAVLTreeSet();
 		
-		int opaqueFaces = 0, transparentFaces = 0;
+		int solidFaces = 0, translucentFaces = 0;
 		
 		for(int x = 0; x < 32; x++)
 		{
@@ -180,34 +169,34 @@ public final class Chunk implements IChunk
 					
 					if(idx != 0)
 					{
-						if(isTransparentBlock(idx, getPos(), x, y, z))
+						if(isTranslucent(idx, getPos(), x, y, z))
 						{
-							transparentIndices.add(storageIdx);
+							translucentIndices.add(storageIdx);
 							
-							if(isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x + 1, y, z)) transparentFaces++;
-							if(isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x - 1, y, z)) transparentFaces++;
-							if(isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x, y + 1, z)) transparentFaces++;
-							if(isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x, y - 1, z)) transparentFaces++;
-							if(isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x, y, z + 1)) transparentFaces++;
-							if(isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x, y, z - 1)) transparentFaces++;
+							if(isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x + 1, y, z)) translucentFaces++;
+							if(isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x - 1, y, z)) translucentFaces++;
+							if(isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x, y + 1, z)) translucentFaces++;
+							if(isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x, y - 1, z)) translucentFaces++;
+							if(isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x, y, z + 1)) translucentFaces++;
+							if(isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x, y, z - 1)) translucentFaces++;
 						}
 						else
 						{
-							if(isTransparent(n, s, e, w, u, d, x + 1, y, z)) opaqueFaces++;
-							if(isTransparent(n, s, e, w, u, d, x - 1, y, z)) opaqueFaces++;
-							if(isTransparent(n, s, e, w, u, d, x, y + 1, z)) opaqueFaces++;
-							if(isTransparent(n, s, e, w, u, d, x, y - 1, z)) opaqueFaces++;
-							if(isTransparent(n, s, e, w, u, d, x, y, z + 1)) opaqueFaces++;
-							if(isTransparent(n, s, e, w, u, d, x, y, z - 1)) opaqueFaces++;
+							if(hasTransparency(n, s, e, w, u, d, x + 1, y, z)) solidFaces++;
+							if(hasTransparency(n, s, e, w, u, d, x - 1, y, z)) solidFaces++;
+							if(hasTransparency(n, s, e, w, u, d, x, y + 1, z)) solidFaces++;
+							if(hasTransparency(n, s, e, w, u, d, x, y - 1, z)) solidFaces++;
+							if(hasTransparency(n, s, e, w, u, d, x, y, z + 1)) solidFaces++;
+							if(hasTransparency(n, s, e, w, u, d, x, y, z - 1)) solidFaces++;
 						}
 					}
 				}
 			}
 		}
 		
-		renderer.setTriangles(opaqueFaces * 2, transparentFaces * 2);
+		renderer.setTriangles(solidFaces * 2, translucentFaces * 2);
 		
-		if(opaqueFaces + transparentFaces > 0)
+		if(solidFaces + translucentFaces > 0)
 		{
 			FloatBuffer vertexBuf = renderer.getVertexBuffer();
 			FloatBuffer texCoordBuf = renderer.getTexCoordBuffer();
@@ -223,7 +212,7 @@ public final class Chunk implements IChunk
 					{
 						int storageIdx = storageIdx(x, y, z);
 						
-						if(!transparentIndices.contains(storageIdx))
+						if(!translucentIndices.contains(storageIdx))
 						{
 							int idx = blocks[storageIdx] & 0xFFFF;
 							
@@ -231,12 +220,12 @@ public final class Chunk implements IChunk
 							{
 								BlockModel model = DefaultRegistries.BLOCK_MODELS.getById(DefaultRegistries.BLOCKS.getByIdx(idx).getId());
 								
-								boolean ev = isTransparent(n, s, e, w, u, d, x + 1, y, z);
-								boolean wv = isTransparent(n, s, e, w, u, d, x - 1, y, z);
-								boolean uv = isTransparent(n, s, e, w, u, d, x, y + 1, z);
-								boolean dv = isTransparent(n, s, e, w, u, d, x, y - 1, z);
-								boolean sv = isTransparent(n, s, e, w, u, d, x, y, z + 1);
-								boolean nv = isTransparent(n, s, e, w, u, d, x, y, z - 1);
+								boolean ev = hasTransparency(n, s, e, w, u, d, x + 1, y, z);
+								boolean wv = hasTransparency(n, s, e, w, u, d, x - 1, y, z);
+								boolean uv = hasTransparency(n, s, e, w, u, d, x, y + 1, z);
+								boolean dv = hasTransparency(n, s, e, w, u, d, x, y - 1, z);
+								boolean sv = hasTransparency(n, s, e, w, u, d, x, y, z + 1);
+								boolean nv = hasTransparency(n, s, e, w, u, d, x, y, z - 1);
 								
 								model.getVertices(vertexBuf, x + offset.x, y + offset.y, z + offset.z, nv, sv, ev, wv, uv, dv);
 								model.getTextureCoords(texCoordBuf, nv, sv, ev, wv, uv, dv);
@@ -258,16 +247,16 @@ public final class Chunk implements IChunk
 						int storageIdx = storageIdx(x, y, z);
 						int idx = blocks[storageIdx] & 0xFFFF;
 						
-						if(idx != 0 && transparentIndices.contains(storageIdx))
+						if(idx != 0 && translucentIndices.contains(storageIdx))
 						{
 							BlockModel model = DefaultRegistries.BLOCK_MODELS.getById(DefaultRegistries.BLOCKS.getByIdx(idx).getId());
 							
-							boolean ev = isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x + 1, y, z);
-							boolean wv = isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x - 1, y, z);
-							boolean uv = isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x, y + 1, z);
-							boolean dv = isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x, y - 1, z);
-							boolean sv = isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x, y, z + 1);
-							boolean nv = isTransparentNeighborTransparent(idx, n, s, e, w, u, d, x, y, z - 1);
+							boolean ev = isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x + 1, y, z);
+							boolean wv = isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x - 1, y, z);
+							boolean uv = isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x, y + 1, z);
+							boolean dv = isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x, y - 1, z);
+							boolean sv = isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x, y, z + 1);
+							boolean nv = isTranslucentNeighborTransparent(idx, n, s, e, w, u, d, x, y, z - 1);
 							
 							model.getVertices(vertexBuf, x + offset.x, y + offset.y, z + offset.z, nv, sv, ev, wv, uv, dv);
 							model.getTextureCoords(texCoordBuf, nv, sv, ev, wv, uv, dv);
@@ -302,49 +291,73 @@ public final class Chunk implements IChunk
 	}
 	 */
 	
-	private boolean isTransparent(Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
+	private boolean hasTransparency(Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
 	{
-		return (x < 0 && (w == null || isTransparentBlock(w.blocks[storageIdx(x + 32, y, z)], w.getPos(), x, y, z)))
-				|| (x >= 32 && (e == null || isTransparentBlock(e.blocks[storageIdx(x - 32, y, z)], e.getPos(), x, y, z)))
-				|| (y < 0 && (d == null || isTransparentBlock(d.blocks[storageIdx(x, y + 32, z)], d.getPos(), x, y, z)))
-				|| (y >= 32 && (u == null || isTransparentBlock(u.blocks[storageIdx(x, y - 32, z)], u.getPos(), x, y, z)))
-				|| (z < 0 && (n == null || isTransparentBlock(n.blocks[storageIdx(x, y, z + 32)], n.getPos(), x, y, z)))
-				|| (z >= 32 && (s == null || isTransparentBlock(s.blocks[storageIdx(x, y, z - 32)], s.getPos(), x, y, z)))
-				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTransparentBlock(blocks[storageIdx(x, y, z)], getPos(), x, y, z));
+		return (x < 0 && (w == null || hasTransparency(w.blocks[storageIdx(x + 32, y, z)], w.getPos(), x, y, z)))
+				|| (x >= 32 && (e == null || hasTransparency(e.blocks[storageIdx(x - 32, y, z)], e.getPos(), x, y, z)))
+				|| (y < 0 && (d == null || hasTransparency(d.blocks[storageIdx(x, y + 32, z)], d.getPos(), x, y, z)))
+				|| (y >= 32 && (u == null || hasTransparency(u.blocks[storageIdx(x, y - 32, z)], u.getPos(), x, y, z)))
+				|| (z < 0 && (n == null || hasTransparency(n.blocks[storageIdx(x, y, z + 32)], n.getPos(), x, y, z)))
+				|| (z >= 32 && (s == null || hasTransparency(s.blocks[storageIdx(x, y, z - 32)], s.getPos(), x, y, z)))
+				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && hasTransparency(blocks[storageIdx(x, y, z)], getPos(), x, y, z));
 	}
 	
-	private boolean isTransparentNeighborTransparent(int block, Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
+	/*
+	private boolean isTranslucent(Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
 	{
-		return (x < 0 && (w == null || isTransparentFaceVisible(block, w.blocks[storageIdx(x + 32, y, z)], w.getPos(), x, y, z)))
-				|| (x >= 32 && (e == null || isTransparentFaceVisible(block, e.blocks[storageIdx(x - 32, y, z)], e.getPos(), x, y, z)))
-				|| (y < 0 && (d == null || isTransparentFaceVisible(block, d.blocks[storageIdx(x, y + 32, z)], d.getPos(), x, y, z)))
-				|| (y >= 32 && (u == null || isTransparentFaceVisible(block, u.blocks[storageIdx(x, y - 32, z)], u.getPos(), x, y, z)))
-				|| (z < 0 && (n == null || isTransparentFaceVisible(block, n.blocks[storageIdx(x, y, z + 32)], n.getPos(), x, y, z)))
-				|| (z >= 32 && (s == null || isTransparentFaceVisible(block, s.blocks[storageIdx(x, y, z - 32)], s.getPos(), x, y, z)))
-				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTransparentFaceVisible(block, blocks[storageIdx(x, y, z)], getPos(), x, y, z));
+		return (x < 0 && (w == null || isTranslucent(w.blocks[storageIdx(x + 32, y, z)], w.getPos(), x, y, z)))
+				|| (x >= 32 && (e == null || isTranslucent(e.blocks[storageIdx(x - 32, y, z)], e.getPos(), x, y, z)))
+				|| (y < 0 && (d == null || isTranslucent(d.blocks[storageIdx(x, y + 32, z)], d.getPos(), x, y, z)))
+				|| (y >= 32 && (u == null || isTranslucent(u.blocks[storageIdx(x, y - 32, z)], u.getPos(), x, y, z)))
+				|| (z < 0 && (n == null || isTranslucent(n.blocks[storageIdx(x, y, z + 32)], n.getPos(), x, y, z)))
+				|| (z >= 32 && (s == null || isTranslucent(s.blocks[storageIdx(x, y, z - 32)], s.getPos(), x, y, z)))
+				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTranslucent(blocks[storageIdx(x, y, z)], getPos(), x, y, z));
+	}
+	 */
+	
+	private boolean isTranslucentNeighborTransparent(int block, Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
+	{
+		return (x < 0 && (w == null || isTranslucentFaceVisible(block, w.blocks[storageIdx(x + 32, y, z)], w.getPos(), x, y, z)))
+				|| (x >= 32 && (e == null || isTranslucentFaceVisible(block, e.blocks[storageIdx(x - 32, y, z)], e.getPos(), x, y, z)))
+				|| (y < 0 && (d == null || isTranslucentFaceVisible(block, d.blocks[storageIdx(x, y + 32, z)], d.getPos(), x, y, z)))
+				|| (y >= 32 && (u == null || isTranslucentFaceVisible(block, u.blocks[storageIdx(x, y - 32, z)], u.getPos(), x, y, z)))
+				|| (z < 0 && (n == null || isTranslucentFaceVisible(block, n.blocks[storageIdx(x, y, z + 32)], n.getPos(), x, y, z)))
+				|| (z >= 32 && (s == null || isTranslucentFaceVisible(block, s.blocks[storageIdx(x, y, z - 32)], s.getPos(), x, y, z)))
+				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTranslucentFaceVisible(block, blocks[storageIdx(x, y, z)], getPos(), x, y, z));
 	}
 	
-	private boolean isTransparentBlock(int idx, IChunkPosition chunk, int x, int y, int z)
+	private boolean hasTransparency(int idx, IChunkPosition chunk, int x, int y, int z)
 	{
-		return idx == 0 || (DefaultRegistries.BLOCKS.getByIdx(idx) instanceof ITransparentBlock b && b.isTransparent(world, chunk.worldX() + x, chunk.worldY() + y, chunk.worldZ() + z));
+		if(idx == 0) return true;
+		Block block = DefaultRegistries.BLOCKS.getByIdx(idx);
+		return block instanceof ICutoutBlock || (block instanceof ITranslucentBlock b && b.hasTransparency(world, chunk.worldX() + x, chunk.worldY() + y, chunk.worldZ() + z));
 	}
 	
-	private boolean isTransparentFaceVisible(int block, int neighbor, IChunkPosition neighborChunk, int nx, int ny, int nz)
+	private boolean isTranslucent(int idx, IChunkPosition chunk, int x, int y, int z)
+	{
+		return idx != 0 && (DefaultRegistries.BLOCKS.getByIdx(idx) instanceof ITranslucentBlock b && b.hasTransparency(world, chunk.worldX() + x, chunk.worldY() + y, chunk.worldZ() + z));
+	}
+	
+	private boolean isTranslucentFaceVisible(int block, int neighbor, IChunkPosition neighborChunk, int nx, int ny, int nz)
 	{
 		if(neighbor == 0) return true;
-		if(DefaultRegistries.BLOCKS.getByIdx(neighbor) instanceof ITransparentBlock b) return block != neighbor || !b.blocksAdjacentFaces(world, neighborChunk.worldX() + nx, neighborChunk.worldY() + ny, neighborChunk.worldZ() + nz);
+		
+		Block b = DefaultRegistries.BLOCKS.getByIdx(neighbor);
+		
+		if(b instanceof ICutoutBlock) return true;
+		if(b instanceof ITranslucentBlock tl) return block != neighbor || !tl.blocksAdjacentFaces(world, neighborChunk.worldX() + nx, neighborChunk.worldY() + ny, neighborChunk.worldZ() + nz);
 		
 		return false;
 	}
 	
-	public IRenderable opaque()
+	public IRenderable solid()
 	{
-		return opaque;
+		return solid;
 	}
 	
-	public IRenderable transparent()
+	public IRenderable translucent()
 	{
-		return transparent;
+		return translucent;
 	}
 	
 	public int blockCount()
@@ -355,6 +368,16 @@ public final class Chunk implements IChunk
 	public boolean empty()
 	{
 		return blockCount == 0;
+	}
+	
+	public Vector3dc getCenter()
+	{
+		return center;
+	}
+	
+	public boolean testFrustum(FrustumIntersection frustum)
+	{
+		return frustum.testAab(minX + offset.x, minY + offset.y, minZ + offset.z, maxX + offset.x + 1.0F, maxY + offset.y + 1.0F, maxZ + offset.z + 1.0F);
 	}
 	
 	void destroy()

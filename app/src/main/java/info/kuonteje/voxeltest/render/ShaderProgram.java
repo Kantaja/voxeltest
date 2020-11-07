@@ -1,43 +1,45 @@
 package info.kuonteje.voxeltest.render;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL20.*;
+import static org.lwjgl.opengl.GL11C.*;
+import static org.lwjgl.opengl.GL20C.*;
+
+import java.util.EnumMap;
+import java.util.Set;
 
 import info.kuonteje.voxeltest.assets.AssetLoader;
 import info.kuonteje.voxeltest.assets.AssetType;
+import info.kuonteje.voxeltest.util.Either;
 import info.kuonteje.voxeltest.util.Lazy;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectAVLTreeSet;
 
 public class ShaderProgram
 {
-	public static enum ShaderType
-	{
-		VERTEX(".v", GL_VERTEX_SHADER),
-		FRAGMENT(".f", GL_FRAGMENT_SHADER);
-		
-		private final String suffix;
-		private final int glType;
-		
-		private ShaderType(String suffix, int glType)
-		{
-			this.suffix = suffix;
-			this.glType = glType;
-		}
-	}
-	
 	private static int lastBound = 0;
 	
 	private final int program;
 	
 	private final Lazy<Object2IntMap<String>> uniformCache = Lazy.of(Object2IntOpenHashMap::new);
 	
-	private void init(int vertex, int fragment, boolean destroyVertex, boolean destroyFragment)
+	private ShaderProgram(EnumMap<ShaderType, Either<String, Integer>> builderMap)
 	{
-		glAttachShader(program, vertex);
-		glAttachShader(program, fragment);
+		final Lazy<Set<Integer>> providedShaders = Lazy.of(ObjectAVLTreeSet::new);
+		final Set<Integer> shaders = new ObjectAVLTreeSet<>();
+		
+		builderMap.forEach((type, s) -> s.match(id -> shaders.add(loadShaderObject(id, type)), shader ->
+		{
+			providedShaders.get().add(shader);
+			shaders.add(shader);
+		}));
+		
+		program = glCreateProgram();
+		
+		shaders.forEach(s -> glAttachShader(program, s));
 		
 		glLinkProgram(program);
+		
+		shaders.forEach(s -> glDetachShader(program, s));
 		
 		try
 		{
@@ -52,52 +54,11 @@ public class ShaderProgram
 		}
 		finally
 		{
-			glDetachShader(program, vertex);
-			glDetachShader(program, fragment);
-			
-			if(destroyVertex) glDeleteShader(vertex);
-			if(destroyFragment) glDeleteShader(fragment);
+			shaders.forEach(s ->
+			{
+				if(!providedShaders.got() || !providedShaders.get().contains(s)) glDeleteShader(s);
+			});
 		}
-	}
-	
-	public ShaderProgram(int vertex, int fragment)
-	{
-		program = glCreateProgram();
-		init(vertex, fragment, false, false);
-	}
-	
-	public ShaderProgram(int vertex, String fragmentId)
-	{
-		int fragment = loadShaderObject(fragmentId, ShaderType.FRAGMENT);
-		program = glCreateProgram();
-		init(vertex, fragment, false, true);
-	}
-	
-	public ShaderProgram(String vertexId, int fragment)
-	{
-		int vertex = loadShaderObject(vertexId, ShaderType.VERTEX);
-		program = glCreateProgram();
-		init(vertex, fragment, true, false);
-	}
-	
-	public ShaderProgram(String vertexId, String fragmentId)
-	{
-		vertexId += ShaderType.VERTEX.suffix;
-		fragmentId += ShaderType.FRAGMENT.suffix;
-		
-		String vertexSrc = AssetLoader.loadTextAsset(AssetType.SHADER, vertexId);
-		String fragmentSrc = AssetLoader.loadTextAsset(AssetType.SHADER, fragmentId);
-		
-		int vertex = createShader(vertexId, ShaderType.VERTEX, vertexSrc);
-		int fragment = createShader(fragmentId, ShaderType.FRAGMENT, fragmentSrc);
-		
-		program = glCreateProgram();
-		init(vertex, fragment, true, true);
-	}
-	
-	public ShaderProgram(String id)
-	{
-		this(id, id);
 	}
 	
 	public int handle()
@@ -136,13 +97,11 @@ public class ShaderProgram
 	
 	public static int loadShaderObject(String id, ShaderType type)
 	{
-		id += type.suffix;
-		return createShader(id, type, AssetLoader.loadTextAsset(AssetType.SHADER, id));
-	}
-	
-	private static int createShader(String id, ShaderType type, String src)
-	{
-		int shader = glCreateShader(type.glType);
+		id += type.getSuffix();
+		
+		String src = AssetLoader.loadTextAsset(AssetType.SHADER, id);
+		
+		int shader = glCreateShader(type.getGlType());
 		
 		glShaderSource(shader, src);
 		glCompileShader(shader);
@@ -157,5 +116,101 @@ public class ShaderProgram
 		}
 		
 		return shader;
+	}
+	
+	public static Builder builder()
+	{
+		return new Builder();
+	}
+	
+	public static class Builder
+	{
+		private final EnumMap<ShaderType, Either<String, Integer>> shaders = new EnumMap<>(ShaderType.class);
+		
+		private Builder() {}
+		
+		public Builder vertex(String id)
+		{
+			shaders.put(ShaderType.VERTEX, Either.left(id));
+			return this;
+		}
+		
+		public Builder tessControl(String id)
+		{
+			shaders.put(ShaderType.TESSELATION_CONTROL, Either.left(id));
+			return this;
+		}
+		
+		public Builder tessEval(String id)
+		{
+			shaders.put(ShaderType.TESSELATION_EVALUATION, Either.left(id));
+			return this;
+		}
+		
+		public Builder geometry(String id)
+		{
+			shaders.put(ShaderType.GEOMETRY, Either.left(id));
+			return this;
+		}
+		
+		public Builder fragment(String id)
+		{
+			shaders.put(ShaderType.FRAGMENT, Either.left(id));
+			return this;
+		}
+		
+		public Builder compute(String id)
+		{
+			shaders.put(ShaderType.COMPUTE, Either.left(id));
+			return this;
+		}
+		
+		public Builder vertexFragment(String id)
+		{
+			shaders.put(ShaderType.VERTEX, Either.left(id));
+			shaders.put(ShaderType.FRAGMENT, Either.left(id));
+			return this;
+		}
+		
+		public Builder vertex(int id)
+		{
+			shaders.put(ShaderType.VERTEX, Either.right(id));
+			return this;
+		}
+		
+		public Builder tessControl(int id)
+		{
+			shaders.put(ShaderType.TESSELATION_CONTROL, Either.right(id));
+			return this;
+		}
+		
+		public Builder tessEval(int id)
+		{
+			shaders.put(ShaderType.TESSELATION_EVALUATION, Either.right(id));
+			return this;
+		}
+		
+		public Builder geometry(int id)
+		{
+			shaders.put(ShaderType.GEOMETRY, Either.right(id));
+			return this;
+		}
+		
+		public Builder fragment(int id)
+		{
+			shaders.put(ShaderType.FRAGMENT, Either.right(id));
+			return this;
+		}
+		
+		public Builder compute(int id)
+		{
+			shaders.put(ShaderType.COMPUTE, Either.right(id));
+			return this;
+		}
+		
+		public ShaderProgram create()
+		{
+			return new ShaderProgram(shaders);
+		}
 	}
 }

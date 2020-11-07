@@ -1,5 +1,6 @@
 package info.kuonteje.voxeltest.util;
 
+import java.util.Objects;
 import java.util.function.Supplier;
 
 public class Lazy<T>
@@ -9,7 +10,7 @@ public class Lazy<T>
 	
 	private Lazy(Supplier<T> supplier)
 	{
-		this.supplier = supplier;
+		this.supplier = Objects.requireNonNull(supplier, "supplier cannot be null");
 	}
 	
 	public T get()
@@ -21,6 +22,11 @@ public class Lazy<T>
 		}
 		
 		return value;
+	}
+	
+	public boolean got()
+	{
+		return supplier == null;
 	}
 	
 	public static <T> Lazy<T> of(Supplier<T> supplier)

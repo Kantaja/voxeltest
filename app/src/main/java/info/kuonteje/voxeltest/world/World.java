@@ -1,17 +1,12 @@
 package info.kuonteje.voxeltest.world;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL20.*;
-
-import java.util.List;
 import java.util.Random;
-import java.util.concurrent.Future;
+import java.util.concurrent.Phaser;
 import java.util.function.Consumer;
 
 import info.kuonteje.voxeltest.Ticks;
 import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.block.Block;
-import info.kuonteje.voxeltest.render.ChunkShaderBindings;
 import info.kuonteje.voxeltest.render.Renderer;
 import info.kuonteje.voxeltest.world.worldgen.GeneratingChunkProvider;
 import info.kuonteje.voxeltest.world.worldgen.TimingChunkProvider;
@@ -19,7 +14,6 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectAVLTreeMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectAVLTreeMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 
 // TODO fix excessive synchronization on chunk accesses, it's the bottleneck in feature generation
 // also extremely rare chunks staying as pregen
@@ -35,11 +29,36 @@ public class World implements Ticks.ITickHandler
 	public World(long seed)
 	{
 		this.seed = seed;
-		
 		chunkProvider = new TimingChunkProvider(new GeneratingChunkProvider(this));
 		
-		List<Future<?>> loadingChunks = new ObjectArrayList<>();
+		initialLoad();
 		
+		VoxelTest.CONSOLE.addCommand("chunkstatus", (c, a) ->
+		{
+			int x = Integer.parseInt(a.get(1));
+			int y = Integer.parseInt(a.get(2));
+			int z = Integer.parseInt(a.get(3));
+			System.out.println("(" + x + ", " + y + ", " + z + ") -> " + getChunkStatus(new ChunkPosition(x, y, z)).toString());
+		}, 0);
+		
+		VoxelTest.CONSOLE.addCommand("chunktime", (c, a) ->
+		{
+			double totalTime = Chunk.meshTimer.totalTime();
+			int totalMeshes = Chunk.meshTimer.totalOps();
+			
+			System.out.println("Generating " + totalMeshes + " chunk meshes took " + (Math.round(totalTime * 100000.0) / 100.0) +
+					" ms, average " + (Math.round((totalTime / totalMeshes) * 100000.0) / 100.0) + " ms each, " + (Math.round((totalMeshes / totalTime) * 100.0) / 100.0) + " meshes/sec");
+		}, 0);
+	}
+	
+	public World()
+	{
+		this(new Random().nextLong());
+	}
+	
+	private void initialLoad()
+	{
+		Phaser loadingChunks = new Phaser(1);
 		int totalQueuedChunks = 0;
 		
 		for(int x = -8; x < 8; x++)
@@ -48,31 +67,35 @@ public class World implements Ticks.ITickHandler
 			{
 				for(int y = -4; y <= 2; y++)
 				{
-					final int fx = x;
-					final int fy = y;
-					final int fz = z;
-					loadingChunks.add(VoxelTest.getThreadPool().submit(() -> getChunk(new ChunkPosition(fx, fy, fz), MissingChunkAction.GENERATE)));
+					ChunkPosition pos = new ChunkPosition(x, y, z);
 					
+					loadingChunks.register();
 					totalQueuedChunks++;
+					
+					VoxelTest.getThreadPool().execute(() ->
+					{
+						try
+						{
+							getChunk(pos, MissingChunkAction.GENERATE);
+						}
+						catch(Exception e)
+						{
+							new RuntimeException("Failed to generate chunk at " + pos.toString(), e).printStackTrace();
+						}
+						finally
+						{
+							loadingChunks.arriveAndDeregister();
+						}
+					});
 				}
 			}
 		}
 		
 		//loadingChunks.add(VoxelTest.getThreadPool().submit(() -> getChunk(new ChunkPosition(0, 0, 0), true)));
 		
-		System.out.println("Queued " + totalQueuedChunks + " chunks for generation");
+		loadingChunks.arriveAndAwaitAdvance();
 		
-		loadingChunks.forEach(f ->
-		{
-			try
-			{
-				f.get();
-			}
-			catch(Exception e)
-			{
-				e.printStackTrace();
-			}
-		});
+		System.out.println("Queued " + totalQueuedChunks + " chunks for generation");
 		
 		if(chunkProvider instanceof TimingChunkProvider timer)
 		{
@@ -82,19 +105,6 @@ public class World implements Ticks.ITickHandler
 			System.out.println("Generating " + totalChunks + " chunks took " + (Math.round(totalTime * 100000.0) / 100.0) +
 					" ms, average " + (Math.round((totalTime / totalChunks) * 100000.0) / 100.0) + " ms each, " + (Math.round((totalChunks / totalTime) * 100.0) / 100.0) + " chunks/sec");
 		}
-		
-		VoxelTest.CONSOLE.addCommand("chunkstatus", (c, a) ->
-		{
-			int x = Integer.parseInt(a.get(1));
-			int y = Integer.parseInt(a.get(2));
-			int z = Integer.parseInt(a.get(3));
-			System.out.println("(" + x + ", " + y + ", " + z + ") -> " + getChunkStatus(new ChunkPosition(x, y, z)).toString());
-		}, 0);
-	}
-	
-	public World()
-	{
-		this(new Random().nextLong());
 	}
 	
 	public long getSeed()
@@ -230,12 +240,11 @@ public class World implements Ticks.ITickHandler
 	
 	public void render(Renderer renderer)
 	{
-		glUniform1i(ChunkShaderBindings.BASE_TRIANGLE_ID, 0);
-		forEachLoadedChunk(c -> renderer.render(c.opaque()));
-		
-		glEnable(GL_BLEND);
-		forEachLoadedChunk(c -> renderer.render(c.transparent()));
-		glDisable(GL_BLEND);
+		forEachLoadedChunk(c ->
+		{
+			renderer.renderSolid(c.solid());
+			renderer.renderTranslucent(c.translucent());
+		});
 	}
 	
 	@Override

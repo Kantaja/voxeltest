@@ -1,8 +1,8 @@
 package info.kuonteje.voxeltest.assets;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL12.*;
-import static org.lwjgl.opengl.GL45.*;
+import static org.lwjgl.opengl.GL11C.*;
+import static org.lwjgl.opengl.GL12C.*;
+import static org.lwjgl.opengl.GL45C.*;
 
 import java.awt.image.BufferedImage;
 import java.io.InputStream;

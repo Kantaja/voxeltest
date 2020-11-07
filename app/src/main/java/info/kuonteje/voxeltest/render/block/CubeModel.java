@@ -12,6 +12,7 @@ import java.nio.IntBuffer;
 import java.util.Arrays;
 
 import org.joml.FrustumIntersection;
+import org.joml.Vector3dc;
 import org.lwjgl.system.MemoryUtil;
 
 import info.kuonteje.voxeltest.VoxelTest;
@@ -318,6 +319,8 @@ public class CubeModel extends BlockModel
 		
 		return new IRenderable()
 		{
+			private double distanceSqToCamera = 0.0;
+			
 			@Override
 			public boolean shouldRender(FrustumIntersection frustum)
 			{
@@ -331,6 +334,18 @@ public class CubeModel extends BlockModel
 				tintTbo.bind(ChunkShaderBindings.TINT_SAMPLER);
 				glBindVertexArray(vao);
 				glDrawArrays(GL_TRIANGLES, 0, 36);
+			}
+			
+			@Override
+			public void setCameraPosition(Vector3dc position)
+			{
+				distanceSqToCamera = position.distanceSquared(0.5, 0.5, 0.5);
+			}
+			
+			@Override
+			public double distanceSqToCamera()
+			{
+				return distanceSqToCamera;
 			}
 		};
 	}

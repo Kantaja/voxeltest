@@ -1,11 +1,11 @@
 package info.kuonteje.voxeltest.render;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL15.*;
-import static org.lwjgl.opengl.GL20.*;
-import static org.lwjgl.opengl.GL30.*;
-import static org.lwjgl.opengl.GL31.*;
-import static org.lwjgl.opengl.GL45.*;
+import static org.lwjgl.opengl.GL11C.*;
+import static org.lwjgl.opengl.GL15C.*;
+import static org.lwjgl.opengl.GL20C.*;
+import static org.lwjgl.opengl.GL30C.*;
+import static org.lwjgl.opengl.GL31C.*;
+import static org.lwjgl.opengl.GL45C.*;
 import static org.lwjgl.system.MemoryUtil.*;
 
 import java.nio.ByteBuffer;
@@ -43,8 +43,8 @@ public class ChunkRenderer
 	
 	private boolean resize = false;
 	
-	private int nOpaqueTriangles, opaqueTriangles = 0;
-	private int nTransparentTriangles, transparentTriangles = 0;
+	private int nSolidTriangles, solidTriangles = 0;
+	private int nTranslucentTriangles, translucentTriangles = 0;
 	
 	public ChunkRenderer()
 	{
@@ -93,16 +93,16 @@ public class ChunkRenderer
 		glVertexArrayAttribBinding(vao, index, index);
 	}
 	
-	public void setTriangles(int opaque, int transparent)
+	public void setTriangles(int solid, int translucent)
 	{
 		synchronized(this)
 		{
-			nOpaqueTriangles = opaque;
-			nTransparentTriangles = transparent;
+			nSolidTriangles = solid;
+			nTranslucentTriangles = translucent;
 			
-			if((opaque + transparent) > bufferSizeTriangles)
+			if((solid + translucent) > bufferSizeTriangles)
 			{
-				bufferSizeTriangles = opaque + transparent + resizeSpace;
+				bufferSizeTriangles = solid + translucent + resizeSpace;
 				resize = true;
 			}
 		}
@@ -175,39 +175,44 @@ public class ChunkRenderer
 			glNamedBufferSubData(texLayerVbo, 0L, texLayerBuf);
 			glNamedBufferSubData(tintVbo, 0L, tintBuf);
 			
-			opaqueTriangles = nOpaqueTriangles;
-			transparentTriangles = nTransparentTriangles;
+			solidTriangles = nSolidTriangles;
+			translucentTriangles = nTranslucentTriangles;
 			
 			resize = false;
 		}
 	}
 	
-	public void renderOpaque()
+	public void renderSolid()
 	{
-		if(opaqueTriangles > 0)
+		if(solidTriangles > 0)
 		{
 			texLayerTbo.bind(ChunkShaderBindings.TEX_LAYER_SAMPLER);
 			tintTbo.bind(ChunkShaderBindings.TINT_SAMPLER);
 			glBindVertexArray(vao);
-			glDrawArrays(GL_TRIANGLES, 0, opaqueTriangles * VERTICES_PER_TRIANGLE);
+			glDrawArrays(GL_TRIANGLES, 0, solidTriangles * VERTICES_PER_TRIANGLE);
 		}
 	}
 	
-	public void renderTransparent()
+	public void renderTranslucent()
 	{
-		if(transparentTriangles > 0)
+		if(translucentTriangles > 0)
 		{
-			glUniform1i(ChunkShaderBindings.BASE_TRIANGLE_ID, opaqueTriangles);
+			glUniform1i(ChunkShaderBindings.BASE_TRIANGLE_ID, solidTriangles);
 			texLayerTbo.bind(ChunkShaderBindings.TEX_LAYER_SAMPLER);
 			tintTbo.bind(ChunkShaderBindings.TINT_SAMPLER);
 			glBindVertexArray(vao);
-			glDrawArrays(GL_TRIANGLES, opaqueTriangles * VERTICES_PER_TRIANGLE, transparentTriangles * VERTICES_PER_TRIANGLE);
+			glDrawArrays(GL_TRIANGLES, solidTriangles * VERTICES_PER_TRIANGLE, translucentTriangles * VERTICES_PER_TRIANGLE);
 		}
 	}
 	
-	public int getTotalTriangles()
+	public int getSolidTriangles()
 	{
-		return opaqueTriangles + transparentTriangles;
+		return solidTriangles;
+	}
+	
+	public int getTranslucentTriangles()
+	{
+		return translucentTriangles;
 	}
 	
 	public void destroy()

@@ -1,10 +1,9 @@
 package info.kuonteje.voxeltest.block;
 
-import info.kuonteje.voxeltest.block.tag.ITransparentBlock;
+import info.kuonteje.voxeltest.block.tag.ICutoutBlock;
 import info.kuonteje.voxeltest.data.EntryId;
-import info.kuonteje.voxeltest.world.World;
 
-public class LeavesBlock extends Block implements ITransparentBlock
+public class LeavesBlock extends Block implements ICutoutBlock
 {
 	public LeavesBlock(EntryId id)
 	{
@@ -16,9 +15,11 @@ public class LeavesBlock extends Block implements ITransparentBlock
 		super(id);
 	}
 	
+	/*
 	@Override
 	public boolean blocksAdjacentFaces(World world, int x, int y, int z)
 	{
 		return false;
 	}
+	 */
 }
