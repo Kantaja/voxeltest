@@ -13,7 +13,6 @@ import org.joml.Vector2d;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
-import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
@@ -126,8 +125,6 @@ public class Window
 		});
 		
 		glfwMakeContextCurrent(window);
-		
-		GL.createCapabilities();
 	}
 	
 	public void requestClose()

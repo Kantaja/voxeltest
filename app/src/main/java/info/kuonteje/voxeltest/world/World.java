@@ -10,19 +10,17 @@ import info.kuonteje.voxeltest.block.Block;
 import info.kuonteje.voxeltest.render.Renderer;
 import info.kuonteje.voxeltest.world.worldgen.GeneratingChunkProvider;
 import info.kuonteje.voxeltest.world.worldgen.TimingChunkProvider;
-import it.unimi.dsi.fastutil.ints.Int2ObjectAVLTreeMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectAVLTreeMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 
-// TODO fix excessive synchronization on chunk accesses, it's the bottleneck in feature generation
-// also extremely rare chunks staying as pregen
+// TODO still some excessive synchronization
+// pregen bug seems to be gone?
 // also configurable worldgen
 public class World implements Ticks.ITickHandler
 {
 	private final long seed;
 	
-	private final Long2ObjectMap<Int2ObjectMap<IChunk>> chunks = new Long2ObjectAVLTreeMap<>();
+	private final Long2ObjectMap<IChunk> chunks = new Long2ObjectAVLTreeMap<>();
 	
 	private IChunkProvider chunkProvider;
 	
@@ -76,7 +74,7 @@ public class World implements Ticks.ITickHandler
 					{
 						try
 						{
-							getChunk(pos, MissingChunkAction.GENERATE);
+							tryCreateChunk(pos);
 						}
 						catch(Exception e)
 						{
@@ -90,8 +88,6 @@ public class World implements Ticks.ITickHandler
 				}
 			}
 		}
-		
-		//loadingChunks.add(VoxelTest.getThreadPool().submit(() -> getChunk(new ChunkPosition(0, 0, 0), true)));
 		
 		loadingChunks.arriveAndAwaitAdvance();
 		
@@ -112,103 +108,77 @@ public class World implements Ticks.ITickHandler
 		return seed;
 	}
 	
-	// MUST SYNCHRONIZE ON CHUNKS
-	private Int2ObjectMap<IChunk> getColumn(IChunkPosition pos, boolean create)
+	private Chunk tryCreateChunk(ChunkPosition pos)
 	{
-		return create ? chunks.computeIfAbsent(pos.plane(), p -> new Int2ObjectAVLTreeMap<>()) : chunks.get(pos.plane());
-	}
-	
-	private Chunk createChunk(IChunkPosition pos)
-	{
-		Chunk chunk = chunkProvider.getChunk(pos.immutable());
+		Chunk chunk = chunkProvider.getChunk(pos);
+		long key = pos.key();
 		
 		synchronized(chunks)
 		{
-			Int2ObjectMap<IChunk> column = getColumn(pos, true);
+			IChunk existing = chunks.get(key);
 			
-			synchronized(column)
-			{
-				PregenChunk pregen = (PregenChunk)column.get(pos.y());
-				if(pregen != null) pregen.apply(chunk);
-				
-				column.put(pos.y(), chunk);
-			}
+			if(existing instanceof Chunk c) return c; // race while generating
+			if(existing instanceof PregenChunk pregen && pregen != null) pregen.apply(chunk);
+			
+			chunks.put(key, chunk);
 		}
 		
 		return chunk;
 	}
 	
-	private PregenChunk createPregen(IChunkPosition pos)
+	private Chunk tryCreateChunk(int x, int y, int z)
 	{
-		PregenChunk chunk = new PregenChunk(this, pos);
+		return tryCreateChunk(new ChunkPosition(x, y, z));
+	}
+	
+	private PregenChunk createPregen(int x, int y, int z)
+	{
+		ChunkPosition pos = new ChunkPosition(x, y, z);
+		PregenChunk pregen = new PregenChunk(this, pos);
 		
+		chunks.put(pos.key(), pregen);
+		
+		return pregen;
+	}
+	
+	public IChunk getChunk(int x, int y, int z, MissingChunkAction missingAction)
+	{
 		synchronized(chunks)
 		{
-			Int2ObjectMap<IChunk> column = getColumn(pos, true);
+			IChunk chunk = chunks.get(ChunkPosition.key(x, y, z));
 			
-			synchronized(column)
-			{
-				column.put(pos.y(), chunk);
-			}
-		}
-		
-		return chunk;
-	}
-	
-	public IChunk getChunk(IChunkPosition pos, MissingChunkAction missingAction)
-	{
-		Int2ObjectMap<IChunk> column = getColumn(pos, false);
-		
-		if(column == null) return missingAction == MissingChunkAction.GENERATE ? createChunk(pos) : (missingAction == MissingChunkAction.GENERATE_PREGEN ? createPregen(pos) : null);
-		else
-		{
-			// don't like locking the entire map for this, but we deadlock otherwise
-			synchronized(chunks)
-			{
-				synchronized(column)
-				{
-					IChunk chunk = column.get(pos.y());
-					
-					if(chunk == null) return missingAction == MissingChunkAction.GENERATE ? createChunk(pos) : (missingAction == MissingChunkAction.GENERATE_PREGEN ? createPregen(pos) : null);
-					else if(chunk instanceof PregenChunk && missingAction == MissingChunkAction.GENERATE) return createChunk(pos);
-					else return chunk;
-				}
-			}
+			if(chunk == null) return missingAction == MissingChunkAction.GENERATE ? tryCreateChunk(x, y, z) : (missingAction == MissingChunkAction.GENERATE_PREGEN ? createPregen(x, y, z) : null);
+			else if(chunk instanceof PregenChunk && missingAction == MissingChunkAction.GENERATE) return tryCreateChunk(x, y, z);
+			else return chunk;
 		}
 	}
 	
-	public IChunk getChunkOrPregen(IChunkPosition pos)
+	public IChunk getChunkOrPregen(int x, int y, int z)
 	{
-		return getChunk(pos, MissingChunkAction.GENERATE_PREGEN);
+		return getChunk(x, y, z, MissingChunkAction.GENERATE_PREGEN);
 	}
 	
-	public Chunk getLoadedChunk(IChunkPosition pos)
+	public Chunk getLoadedChunk(int x, int y, int z)
 	{
-		IChunk chunk = getChunk(pos, MissingChunkAction.NOTHING);
+		IChunk chunk = getChunk(x, y, z, MissingChunkAction.NOTHING);
 		return chunk instanceof Chunk c ? c : null;
 	}
 	
-	public ChunkStatus getChunkStatus(IChunkPosition pos)
+	public ChunkStatus getChunkStatus(ChunkPosition pos)
 	{
 		synchronized(chunks)
 		{
-			Int2ObjectMap<IChunk> column = getColumn(pos, false);
-			if(column == null) return ChunkStatus.NOT_LOADED;
+			IChunk chunk = chunks.get(pos.key());
 			
-			synchronized(column)
-			{
-				IChunk chunk = column.get(pos.y());
-				
-				if(chunk == null) return ChunkStatus.NOT_LOADED;
-				else if(chunk instanceof PregenChunk) return ChunkStatus.PREGEN;
-				else return ChunkStatus.LOADED;
-			}
+			if(chunk == null) return ChunkStatus.NOT_LOADED;
+			else if(chunk instanceof PregenChunk) return ChunkStatus.PREGEN;
+			else return ChunkStatus.LOADED;
 		}
 	}
 	
 	public int getBlockIdx(int x, int y, int z, MissingChunkAction missingAction)
 	{
-		IChunk chunk = getChunk(new ChunkPosition(x >> 5, y >> 5, z >> 5), missingAction);
+		IChunk chunk = getChunk(x >> 5, y >> 5, z >> 5, missingAction);
 		return chunk.getBlockIdx(x & 0x1F, y & 0x1F, z & 0x1F);
 	}
 	
@@ -219,7 +189,7 @@ public class World implements Ticks.ITickHandler
 	
 	public Block getBlock(int x, int y, int z, MissingChunkAction missingAction)
 	{
-		IChunk chunk = getChunk(new ChunkPosition(x >> 5, y >> 5, z >> 5), missingAction);
+		IChunk chunk = getChunk(x >> 5, y >> 5, z >> 5, missingAction);
 		return chunk.getBlock(x & 0x1F, y & 0x1F, z & 0x1F);
 	}
 	
@@ -230,12 +200,12 @@ public class World implements Ticks.ITickHandler
 	
 	public void setBlockIdx(int x, int y, int z, int idx)
 	{
-		getChunk(new ChunkPosition(x >> 5, y >> 5, z >> 5), MissingChunkAction.GENERATE_PREGEN).setBlockIdx(x & 0x1F, y & 0x1F, z & 0x1F, idx);
+		getChunkOrPregen(x >> 5, y >> 5, z >> 5).setBlockIdx(x & 0x1F, y & 0x1F, z & 0x1F, idx);
 	}
 	
 	public void setBlock(int x, int y, int z, Block block)
 	{
-		getChunk(new ChunkPosition(x >> 5, y >> 5, z >> 5), MissingChunkAction.GENERATE_PREGEN).setBlock(x & 0x1F, y & 0x1F, z & 0x1F, block);
+		getChunkOrPregen(x >> 5, y >> 5, z >> 5).setBlock(x & 0x1F, y & 0x1F, z & 0x1F, block);
 	}
 	
 	public void render(Renderer renderer)
@@ -266,9 +236,9 @@ public class World implements Ticks.ITickHandler
 	
 	public void forEachLoadedChunk(Consumer<Chunk> action)
 	{
-		chunks.values().forEach(col -> col.values().forEach(c ->
+		chunks.values().forEach(c ->
 		{
 			if(c instanceof Chunk chunk) action.accept(chunk);
-		}));
+		});
 	}
 }

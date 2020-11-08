@@ -27,7 +27,7 @@ public final class Chunk implements IChunk
 	public static final ConcurrentTimer meshTimer = new ConcurrentTimer();
 	
 	private final World world;
-	private final IChunkPosition pos;
+	private final ChunkPosition pos;
 	
 	private final Vector3dc center;
 	
@@ -47,7 +47,7 @@ public final class Chunk implements IChunk
 	
 	private short[] blocks = new short[32 * 32 * 32];
 	
-	public Chunk(World world, IChunkPosition pos)
+	public Chunk(World world, ChunkPosition pos)
 	{
 		solid = new ChunkRenderable(this, true);
 		translucent = new ChunkRenderable(this, false);
@@ -61,7 +61,7 @@ public final class Chunk implements IChunk
 		});
 		
 		this.world = world;
-		this.pos = pos.immutable();
+		this.pos = pos;
 		
 		this.center = new Vector3d(pos.worldX() + 16.0, pos.worldY() + 16.0, pos.worldZ() + 16.0);
 		
@@ -75,7 +75,7 @@ public final class Chunk implements IChunk
 	}
 	
 	@Override
-	public IChunkPosition getPos()
+	public ChunkPosition getPos()
 	{
 		return pos;
 	}
@@ -145,14 +145,12 @@ public final class Chunk implements IChunk
 	// huge capacity for it, but not urgent
 	private void regenMesh()
 	{
-		MutableChunkPosition adj = new MutableChunkPosition(0, 0, 0);
-		
-		Chunk e = world.getLoadedChunk(adj.set(pos.x() + 1, pos.y(), pos.z()).immutable());
-		Chunk w = world.getLoadedChunk(adj.set(pos.x() - 1, pos.y(), pos.z()).immutable());
-		Chunk u = world.getLoadedChunk(adj.set(pos.x(), pos.y() + 1, pos.z()).immutable());
-		Chunk d = world.getLoadedChunk(adj.set(pos.x(), pos.y() - 1, pos.z()).immutable());
-		Chunk s = world.getLoadedChunk(adj.set(pos.x(), pos.y(), pos.z() + 1).immutable());
-		Chunk n = world.getLoadedChunk(adj.set(pos.x(), pos.y(), pos.z() - 1).immutable());
+		Chunk e = world.getLoadedChunk(pos.x() + 1, pos.y(), pos.z());
+		Chunk w = world.getLoadedChunk(pos.x() - 1, pos.y(), pos.z());
+		Chunk u = world.getLoadedChunk(pos.x(), pos.y() + 1, pos.z());
+		Chunk d = world.getLoadedChunk(pos.x(), pos.y() - 1, pos.z());
+		Chunk s = world.getLoadedChunk(pos.x(), pos.y(), pos.z() + 1);
+		Chunk n = world.getLoadedChunk(pos.x(), pos.y(), pos.z() - 1);
 		
 		final IntSet translucentIndices = new IntAVLTreeSet();
 		
@@ -278,19 +276,6 @@ public final class Chunk implements IChunk
 		}
 	}
 	
-	/*
-	private boolean isEmpty(Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
-	{
-		return (x < 0 && (w == null || w.blocks[((x + 32) << 10) | (z << 5) | y] == 0))
-				|| (x >= 32 && (e == null || e.blocks[((x - 32) << 10) | (z << 5) | y] == 0))
-				|| (y < 0 && (d == null || d.blocks[(x << 10) | (z << 5) | (y + 32)] == 0))
-				|| (y >= 32 && (u == null || u.blocks[(x << 10) | (z << 5) | (y - 32)] == 0))
-				|| (z < 0 && (n == null || n.blocks[(x << 10) | ((z + 32) << 5) | y] == 0))
-				|| (z >= 32 && (s == null || s.blocks[(x << 10) | ((z - 32) << 5) | y] == 0))
-				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && blocks[(x << 10) | (z << 5) | y] == 0);
-	}
-	 */
-	
 	private boolean hasTransparency(Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
 	{
 		return (x < 0 && (w == null || hasTransparency(w.blocks[storageIdx(x + 32, y, z)], w.getPos(), x, y, z)))
@@ -301,19 +286,6 @@ public final class Chunk implements IChunk
 				|| (z >= 32 && (s == null || hasTransparency(s.blocks[storageIdx(x, y, z - 32)], s.getPos(), x, y, z)))
 				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && hasTransparency(blocks[storageIdx(x, y, z)], getPos(), x, y, z));
 	}
-	
-	/*
-	private boolean isTranslucent(Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
-	{
-		return (x < 0 && (w == null || isTranslucent(w.blocks[storageIdx(x + 32, y, z)], w.getPos(), x, y, z)))
-				|| (x >= 32 && (e == null || isTranslucent(e.blocks[storageIdx(x - 32, y, z)], e.getPos(), x, y, z)))
-				|| (y < 0 && (d == null || isTranslucent(d.blocks[storageIdx(x, y + 32, z)], d.getPos(), x, y, z)))
-				|| (y >= 32 && (u == null || isTranslucent(u.blocks[storageIdx(x, y - 32, z)], u.getPos(), x, y, z)))
-				|| (z < 0 && (n == null || isTranslucent(n.blocks[storageIdx(x, y, z + 32)], n.getPos(), x, y, z)))
-				|| (z >= 32 && (s == null || isTranslucent(s.blocks[storageIdx(x, y, z - 32)], s.getPos(), x, y, z)))
-				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTranslucent(blocks[storageIdx(x, y, z)], getPos(), x, y, z));
-	}
-	 */
 	
 	private boolean isTranslucentNeighborTransparent(int block, Chunk n, Chunk s, Chunk e, Chunk w, Chunk u, Chunk d, int x, int y, int z)
 	{
@@ -326,19 +298,19 @@ public final class Chunk implements IChunk
 				|| (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32 && isTranslucentFaceVisible(block, blocks[storageIdx(x, y, z)], getPos(), x, y, z));
 	}
 	
-	private boolean hasTransparency(int idx, IChunkPosition chunk, int x, int y, int z)
+	private boolean hasTransparency(int idx, ChunkPosition chunk, int x, int y, int z)
 	{
 		if(idx == 0) return true;
 		Block block = DefaultRegistries.BLOCKS.getByIdx(idx);
 		return block instanceof ICutoutBlock || (block instanceof ITranslucentBlock b && b.hasTransparency(world, chunk.worldX() + x, chunk.worldY() + y, chunk.worldZ() + z));
 	}
 	
-	private boolean isTranslucent(int idx, IChunkPosition chunk, int x, int y, int z)
+	private boolean isTranslucent(int idx, ChunkPosition chunk, int x, int y, int z)
 	{
 		return idx != 0 && (DefaultRegistries.BLOCKS.getByIdx(idx) instanceof ITranslucentBlock b && b.hasTransparency(world, chunk.worldX() + x, chunk.worldY() + y, chunk.worldZ() + z));
 	}
 	
-	private boolean isTranslucentFaceVisible(int block, int neighbor, IChunkPosition neighborChunk, int nx, int ny, int nz)
+	private boolean isTranslucentFaceVisible(int block, int neighbor, ChunkPosition neighborChunk, int nx, int ny, int nz)
 	{
 		if(neighbor == 0) return true;
 		

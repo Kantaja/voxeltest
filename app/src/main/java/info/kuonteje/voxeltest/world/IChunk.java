@@ -5,7 +5,7 @@ import info.kuonteje.voxeltest.block.Block;
 public sealed interface IChunk permits Chunk, PregenChunk
 {
 	World getWorld();
-	IChunkPosition getPos();
+	ChunkPosition getPos();
 	
 	int getBlockIdx(int x, int y, int z);
 	Block getBlock(int x, int y, int z);

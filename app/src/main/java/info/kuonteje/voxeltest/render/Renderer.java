@@ -16,6 +16,7 @@ import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.NVXGPUMemoryInfo;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -47,6 +48,8 @@ public class Renderer
 	
 	private static final Comparator<IRenderable> solidComparator = new RenderableComparator();
 	private static final Comparator<IRenderable> translucentComparator = solidComparator.reversed();
+	
+	private final GLCapabilities caps;
 	
 	public final CvarF64 rClearRed, rClearGreen, rClearBlue, rClearAlpha;
 	private float clearRed, clearGreen, clearBlue, clearAlpha;
@@ -90,8 +93,10 @@ public class Renderer
 	private final NavigableSet<IRenderable> solidObjects = new ConcurrentSkipListSet<>(solidComparator);
 	private final NavigableSet<IRenderable> translucentObjects = new ConcurrentSkipListSet<>(translucentComparator);
 	
-	public Renderer(Console console, int width, int height)
+	public Renderer(Console console, Window window, int width, int height)
 	{
+		caps = GL.createCapabilities();
+		
 		setupOpenGl();
 		
 		CvarRegistry cvars = console.cvars();
@@ -119,6 +124,8 @@ public class Renderer
 		
 		resize(width, height);
 		
+		window.setResizeCallback(this::resize);
+		
 		postProcessor = new PostProcessor(console, framebuffer, width, height);
 		
 		solidShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("solid_defer").create();
@@ -127,7 +134,7 @@ public class Renderer
 		// TODO AMD/intel alternatives
 		// do intel gpus even support 4.5?
 		// are debug features even useful to port?
-		if(GL.getCapabilities().GL_NVX_gpu_memory_info) console.addCommand("r_vram", (c, a) -> VoxelTest.addRenderHook(() ->
+		if(caps.GL_NVX_gpu_memory_info) console.addCommand("r_vram", (c, a) -> VoxelTest.addRenderHook(() ->
 		{
 			int total = glGetInteger(NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX) / 1024;
 			int available = glGetInteger(NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_TOTAL_AVAILABLE_MEMORY_NVX) / 1024;

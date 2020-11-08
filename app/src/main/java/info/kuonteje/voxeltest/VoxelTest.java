@@ -51,6 +51,9 @@ public class VoxelTest
 	{
 		//try { Thread.sleep(5000L); } catch(Exception e) {}
 		
+		Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
+		Thread.currentThread().setName("Init thread");
+		
 		if(!glfwInit()) throw new RuntimeException("Failed to initialize GLFW");
 		
 		try
@@ -70,18 +73,15 @@ public class VoxelTest
 			threadPool = Executors.newFixedThreadPool(16);
 			
 			window = new Window("VoxelTest", 1366, 768);
+			renderer = new Renderer(CONSOLE, window, 1366, 768);
 			
 			DefaultRegistries.init();
 			
 			RegistryManager.freezeAll();
 			
-			renderer = new Renderer(CONSOLE, 1366, 768);
-			
-			window.setResizeCallback(renderer::resize);
-			
 			camera = new Camera(window::getKey, window::getMouse);
 			
-			window.setSwapInterval(1);
+			//window.setSwapInterval(1);
 			
 			Ticks.addTickHandler(world = new World());
 			addShutdownHook(world::destroy);
@@ -89,6 +89,8 @@ public class VoxelTest
 			Ticks.init();
 			
 			startConsoleInput();
+			
+			Thread.currentThread().setName("Render thread");
 			
 			window.captureMouse();
 			
@@ -208,7 +210,7 @@ public class VoxelTest
 					e.printStackTrace();
 				}
 			}
-		});
+		}, "Stdin console thread");
 		
 		consoleThread.setDaemon(true);
 		consoleThread.start();

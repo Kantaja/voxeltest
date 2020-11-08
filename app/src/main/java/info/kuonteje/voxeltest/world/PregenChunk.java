@@ -10,17 +10,17 @@ public final class PregenChunk implements IChunk
 	private record PregenOp(int x, int y, int z, int blockIdx) {}
 	
 	private final World world;
-	private final IChunkPosition pos;
+	private final ChunkPosition pos;
 	
 	private final Object lock = new Object();
 	
 	private PriorityQueue<PregenOp> ops = new ObjectArrayFIFOQueue<>();
 	private Chunk applied = null;
 	
-	PregenChunk(World world, IChunkPosition pos)
+	PregenChunk(World world, ChunkPosition pos)
 	{
 		this.world = world;
-		this.pos = pos.immutable();
+		this.pos = pos;
 	}
 	
 	@Override
@@ -30,7 +30,7 @@ public final class PregenChunk implements IChunk
 	}
 	
 	@Override
-	public IChunkPosition getPos()
+	public ChunkPosition getPos()
 	{
 		return pos;
 	}
