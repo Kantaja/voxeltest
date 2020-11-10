@@ -78,7 +78,7 @@ public final class PregenChunk implements IChunk
 	{
 		synchronized(lock)
 		{
-			return applied == null ? true : applied.hasTransparency(x, y, z);
+			return applied == null || applied.hasTransparency(x, y, z);
 		}
 	}
 	
