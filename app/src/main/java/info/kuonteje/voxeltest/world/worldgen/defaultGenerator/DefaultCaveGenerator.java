@@ -4,7 +4,6 @@ import info.kuonteje.repack.fastnoise.CellularDistanceFunction;
 import info.kuonteje.repack.fastnoise.CellularReturnType;
 import info.kuonteje.repack.fastnoise.FastNoiseLite;
 import info.kuonteje.repack.fastnoise.NoiseType;
-import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.util.MathUtil;
 import info.kuonteje.voxeltest.world.Chunk;
@@ -12,7 +11,7 @@ import info.kuonteje.voxeltest.world.worldgen.IChunkProcessor;
 
 public class DefaultCaveGenerator implements IChunkProcessor
 {
-	private static final int WATER = DefaultRegistries.BLOCKS.getIdx(Blocks.WATER);
+	private static final int WATER = Blocks.WATER.getIdx();
 	
 	private static final float THRESHOLD = 0.82F;
 	

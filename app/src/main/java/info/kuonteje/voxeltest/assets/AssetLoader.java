@@ -21,7 +21,7 @@ public class AssetLoader
 	public static InputStream getAssetStream(AssetType type, String id)
 	{
 		int colon = id.indexOf(':');
-		return colon != -1 ? getAssetStream(type, id.substring(0, colon), id.substring(colon + 1, id.length())) : getAssetStream(type, "voxeltest", id);
+		return colon != -1 ? getAssetStream(type, id.substring(0, colon), id.substring(colon + 1, id.length())) : getAssetStream(type, VoxelTest.DEFAULT_DOMAIN, id);
 	}
 	
 	public static String loadTextAsset(AssetType type, String domain, String id)
@@ -41,6 +41,6 @@ public class AssetLoader
 	public static String loadTextAsset(AssetType type, String id)
 	{
 		int colon = id.indexOf(':');
-		return colon != -1 ? loadTextAsset(type, id.substring(0, colon), id.substring(colon + 1, id.length())) : loadTextAsset(type, "voxeltest", id);
+		return colon != -1 ? loadTextAsset(type, id.substring(0, colon), id.substring(colon + 1, id.length())) : loadTextAsset(type, VoxelTest.DEFAULT_DOMAIN, id);
 	}
 }

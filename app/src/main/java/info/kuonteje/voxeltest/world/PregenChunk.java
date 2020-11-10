@@ -7,7 +7,7 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayFIFOQueue;
 
 public final class PregenChunk implements IChunk
 {
-	private record PregenOp(int x, int y, int z, int blockIdx) {}
+	private record PregenOp(int x, int y, int z, Block block) {}
 	
 	private final World world;
 	private final ChunkPosition pos;
@@ -40,7 +40,7 @@ public final class PregenChunk implements IChunk
 	{
 		synchronized(lock)
 		{
-			if(applied == null) ops.enqueue(new PregenOp(x, y, z, idx));
+			if(applied == null) ops.enqueue(new PregenOp(x, y, z, DefaultRegistries.BLOCKS.getByIdx(idx)));
 			else applied.setBlockIdx(x, y, z, idx);
 		}
 	}
@@ -50,13 +50,13 @@ public final class PregenChunk implements IChunk
 	{
 		synchronized(lock)
 		{
-			if(applied == null) ops.enqueue(new PregenOp(x, y, z, DefaultRegistries.BLOCKS.getIdx(block)));
+			if(applied == null) ops.enqueue(new PregenOp(x, y, z, block));
 			else applied.setBlock(x, y, z, block);
 		}
 	}
 	
 	@Override
-	public int getBlockIdx(int x, int y, int z)
+	public int getBlockIdxInternal(int x, int y, int z)
 	{
 		synchronized(lock)
 		{
@@ -73,6 +73,15 @@ public final class PregenChunk implements IChunk
 		}
 	}
 	
+	@Override
+	public boolean hasTransparency(int x, int y, int z)
+	{
+		synchronized(lock)
+		{
+			return applied == null ? true : applied.hasTransparency(x, y, z);
+		}
+	}
+	
 	void apply(Chunk chunk)
 	{
 		synchronized(lock)
@@ -80,7 +89,7 @@ public final class PregenChunk implements IChunk
 			while(!ops.isEmpty())
 			{
 				PregenOp op = ops.dequeue();
-				chunk.setBlockIdx(op.x, op.y, op.z, op.blockIdx);
+				chunk.setBlock(op.x, op.y, op.z, op.block);
 			}
 			
 			ops = null;

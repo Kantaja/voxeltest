@@ -160,6 +160,6 @@ public class TextureLoader
 	public static Texture loadTexture(String id, ITextureProvider provider, int mipmapBase)
 	{
 		int colon = id.indexOf(':');
-		return colon != -1 ? loadTexture(id.substring(0, colon), id.substring(colon + 1, id.length()), provider, mipmapBase) : loadTexture("voxeltest", id, provider, mipmapBase);
+		return colon != -1 ? loadTexture(id.substring(0, colon), id.substring(colon + 1, id.length()), provider, mipmapBase) : loadTexture(VoxelTest.DEFAULT_DOMAIN, id, provider, mipmapBase);
 	}
 }

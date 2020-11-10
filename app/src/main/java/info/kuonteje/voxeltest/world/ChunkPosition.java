@@ -2,6 +2,8 @@ package info.kuonteje.voxeltest.world;
 
 public record ChunkPosition(int x, int y, int z)
 {
+	public static final ChunkPosition ZERO = new ChunkPosition(0, 0, 0);
+	
 	public int worldX()
 	{
 		return x * 32;

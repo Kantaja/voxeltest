@@ -9,8 +9,7 @@ layout ( binding = 5) uniform sampler2DArray texSamplers[TEXTURE_ARRAY_COUNT];
 
 layout (location = 0) in vec2 uv;
 layout (location = 1) in vec3 normal;
-layout (location = 2) in float light;
-layout (location = 3) in vec3 position;
+layout (location = 2) in vec3 position;
 
 layout (location = 0) out vec4 albedoOut;
 layout (location = 1) out vec4 positionOut;
@@ -28,7 +27,7 @@ void main() {
 		texel.w = 1.0;
 	}
 
-	albedoOut = texel * vec4(texelFetch(tintSampler, triangleId).xyz, 1.0) * vec4(light, light, light, 1.0);
+	albedoOut = texel * vec4(texelFetch(tintSampler, triangleId).xyz, 1.0);
 	positionOut = vec4(position, 1.0);
 	normalOut = vec4(normal, 0.0);
 }

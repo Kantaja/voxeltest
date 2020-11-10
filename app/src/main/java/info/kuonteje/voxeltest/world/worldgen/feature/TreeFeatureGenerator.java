@@ -2,7 +2,6 @@ package info.kuonteje.voxeltest.world.worldgen.feature;
 
 import java.util.Random;
 
-import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.objects.Blocks;
 import info.kuonteje.voxeltest.world.Chunk;
 import info.kuonteje.voxeltest.world.World;
@@ -10,12 +9,6 @@ import info.kuonteje.voxeltest.world.World;
 public class TreeFeatureGenerator implements IFeatureGenerator
 {
 	private static final int TREE_CHANCE = 768;
-	
-	private static final int GRASS = DefaultRegistries.BLOCKS.getIdx(Blocks.GRASS);
-	
-	private static final int DIRT = DefaultRegistries.BLOCKS.getIdx(Blocks.DIRT);
-	private static final int LOG = DefaultRegistries.BLOCKS.getIdx(Blocks.LOG);
-	private static final int LEAVES = DefaultRegistries.BLOCKS.getIdx(Blocks.LEAVES);
 	
 	@Override
 	public void tryGenerateIn(World world, Chunk chunk)
@@ -34,7 +27,7 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 					
 					if(idx != 0)
 					{
-						if(idx == GRASS && random.nextInt(TREE_CHANCE) == 0)
+						if(idx == Blocks.GRASS.getIdx() && random.nextInt(TREE_CHANCE) == 0)
 							generate(world, random, chunk.getPos().worldX() + x, chunk.getPos().worldY() + y + 1, chunk.getPos().worldZ() + z);
 						
 						continue;
@@ -46,59 +39,59 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 	
 	private void generate(World world, Random random, int x, int y, int z)
 	{
-		world.setBlockIdx(x, y - 1, z, DIRT);
+		world.setBlock(x, y - 1, z, Blocks.DIRT);
 		
 		for(int i = 0; i < 2; i++)
 		{
-			world.setBlockIdx(x, y + i, z, LOG);
+			world.setBlock(x, y + i, z, Blocks.LOG);
 		}
 		
 		for(int i = 2; i < 4; i++)
 		{
-			if(random.nextInt(i == 2 ? 5 : 10) == 0) world.setBlockIdx(x - 2, y + i, z - 2, LEAVES);
-			world.setBlockIdx(x - 1, y + i, z - 2, LEAVES);
-			world.setBlockIdx(x, y + i, z - 2, LEAVES);
-			world.setBlockIdx(x + 1, y + i, z - 2, LEAVES);
-			if(random.nextInt(i == 2 ? 5 : 10) == 0) world.setBlockIdx(x + 2, y + i, z - 2, LEAVES);
+			if(random.nextInt(i == 2 ? 5 : 10) == 0) world.setBlock(x - 2, y + i, z - 2, Blocks.LEAVES);
+			world.setBlock(x - 1, y + i, z - 2, Blocks.LEAVES);
+			world.setBlock(x, y + i, z - 2, Blocks.LEAVES);
+			world.setBlock(x + 1, y + i, z - 2, Blocks.LEAVES);
+			if(random.nextInt(i == 2 ? 5 : 10) == 0) world.setBlock(x + 2, y + i, z - 2, Blocks.LEAVES);
 			
-			world.setBlockIdx(x - 2, y + i, z - 1, LEAVES);
-			world.setBlockIdx(x - 1, y + i, z - 1, LEAVES);
-			world.setBlockIdx(x, y + i, z - 1, LEAVES);
-			world.setBlockIdx(x + 1, y + i, z - 1, LEAVES);
-			world.setBlockIdx(x + 2, y + i, z - 1, LEAVES);
+			world.setBlock(x - 2, y + i, z - 1, Blocks.LEAVES);
+			world.setBlock(x - 1, y + i, z - 1, Blocks.LEAVES);
+			world.setBlock(x, y + i, z - 1, Blocks.LEAVES);
+			world.setBlock(x + 1, y + i, z - 1, Blocks.LEAVES);
+			world.setBlock(x + 2, y + i, z - 1, Blocks.LEAVES);
 			
-			world.setBlockIdx(x - 2, y + i, z, LEAVES);
-			world.setBlockIdx(x - 1, y + i, z, LEAVES);
-			world.setBlockIdx(x, y + i, z, LOG);
-			world.setBlockIdx(x + 1, y + i, z, LEAVES);
-			world.setBlockIdx(x + 2, y + i, z, LEAVES);
+			world.setBlock(x - 2, y + i, z, Blocks.LEAVES);
+			world.setBlock(x - 1, y + i, z, Blocks.LEAVES);
+			world.setBlock(x, y + i, z, Blocks.LOG);
+			world.setBlock(x + 1, y + i, z, Blocks.LEAVES);
+			world.setBlock(x + 2, y + i, z, Blocks.LEAVES);
 			
-			world.setBlockIdx(x - 2, y + i, z + 1, LEAVES);
-			world.setBlockIdx(x - 1, y + i, z + 1, LEAVES);
-			world.setBlockIdx(x, y + i, z + 1, LEAVES);
-			world.setBlockIdx(x + 1, y + i, z + 1, LEAVES);
-			world.setBlockIdx(x + 2, y + i, z + 1, LEAVES);
+			world.setBlock(x - 2, y + i, z + 1, Blocks.LEAVES);
+			world.setBlock(x - 1, y + i, z + 1, Blocks.LEAVES);
+			world.setBlock(x, y + i, z + 1, Blocks.LEAVES);
+			world.setBlock(x + 1, y + i, z + 1, Blocks.LEAVES);
+			world.setBlock(x + 2, y + i, z + 1, Blocks.LEAVES);
 			
-			if(random.nextInt(i == 2 ? 5 : 10) == 0) world.setBlockIdx(x - 2, y + i, z + 2, LEAVES);
-			world.setBlockIdx(x - 1, y + i, z + 2, LEAVES);
-			world.setBlockIdx(x, y + i, z + 2, LEAVES);
-			world.setBlockIdx(x + 1, y + i, z + 2, LEAVES);
-			if(random.nextInt(i == 2 ? 5 : 10) == 0) world.setBlockIdx(x + 2, y + i, z + 2, LEAVES);
+			if(random.nextInt(i == 2 ? 5 : 10) == 0) world.setBlock(x - 2, y + i, z + 2, Blocks.LEAVES);
+			world.setBlock(x - 1, y + i, z + 2, Blocks.LEAVES);
+			world.setBlock(x, y + i, z + 2, Blocks.LEAVES);
+			world.setBlock(x + 1, y + i, z + 2, Blocks.LEAVES);
+			if(random.nextInt(i == 2 ? 5 : 10) == 0) world.setBlock(x + 2, y + i, z + 2, Blocks.LEAVES);
 		}
 		
 		for(int i = 4; i < 6; i++)
 		{
-			if(random.nextInt(i == 4 ? 5 : 10) == 0) world.setBlockIdx(x - 1, y + i, z - 1, LEAVES);
-			world.setBlockIdx(x, y + i, z - 1, LEAVES);
-			if(random.nextInt(i == 4 ? 5 : 10) == 0) world.setBlockIdx(x + 1, y + i, z - 1, LEAVES);
+			if(random.nextInt(i == 4 ? 5 : 10) == 0) world.setBlock(x - 1, y + i, z - 1, Blocks.LEAVES);
+			world.setBlock(x, y + i, z - 1, Blocks.LEAVES);
+			if(random.nextInt(i == 4 ? 5 : 10) == 0) world.setBlock(x + 1, y + i, z - 1, Blocks.LEAVES);
 			
-			world.setBlockIdx(x - 1, y + i, z, LEAVES);
-			world.setBlockIdx(x, y + i, z, i == 4 ? LOG : LEAVES);
-			world.setBlockIdx(x + 1, y + i, z, LEAVES);
+			world.setBlock(x - 1, y + i, z, Blocks.LEAVES);
+			world.setBlock(x, y + i, z, i == 4 ? Blocks.LOG : Blocks.LEAVES);
+			world.setBlock(x + 1, y + i, z, Blocks.LEAVES);
 			
-			if(random.nextInt(i == 4 ? 5 : 10) == 0) world.setBlockIdx(x - 1, y + i, z + 1, LEAVES);
-			world.setBlockIdx(x, y + i, z + 1, LEAVES);
-			if(random.nextInt(i == 4 ? 5 : 10) == 0) world.setBlockIdx(x + 1, y + i, z + 1, LEAVES);
+			if(random.nextInt(i == 4 ? 5 : 10) == 0) world.setBlock(x - 1, y + i, z + 1, Blocks.LEAVES);
+			world.setBlock(x, y + i, z + 1, Blocks.LEAVES);
+			if(random.nextInt(i == 4 ? 5 : 10) == 0) world.setBlock(x + 1, y + i, z + 1, Blocks.LEAVES);
 		}
 	}
 }

@@ -20,6 +20,7 @@ public class World implements Ticks.ITickHandler
 {
 	private final long seed;
 	
+	private final IChunk emptyChunk = new EmptyChunk(this);
 	private final Long2ObjectMap<IChunk> chunks = new Long2ObjectAVLTreeMap<>();
 	
 	private IChunkProvider chunkProvider;
@@ -147,7 +148,7 @@ public class World implements Ticks.ITickHandler
 		{
 			IChunk chunk = chunks.get(ChunkPosition.key(x, y, z));
 			
-			if(chunk == null) return missingAction == MissingChunkAction.GENERATE ? tryCreateChunk(x, y, z) : (missingAction == MissingChunkAction.GENERATE_PREGEN ? createPregen(x, y, z) : null);
+			if(chunk == null) return missingAction == MissingChunkAction.GENERATE ? tryCreateChunk(x, y, z) : (missingAction == MissingChunkAction.GENERATE_PREGEN ? createPregen(x, y, z) : emptyChunk);
 			else if(chunk instanceof PregenChunk && missingAction == MissingChunkAction.GENERATE) return tryCreateChunk(x, y, z);
 			else return chunk;
 		}
@@ -158,10 +159,10 @@ public class World implements Ticks.ITickHandler
 		return getChunk(x, y, z, MissingChunkAction.GENERATE_PREGEN);
 	}
 	
-	public Chunk getLoadedChunk(int x, int y, int z)
+	public IChunk getLoadedChunk(int x, int y, int z)
 	{
 		IChunk chunk = getChunk(x, y, z, MissingChunkAction.NOTHING);
-		return chunk instanceof Chunk c ? c : null;
+		return chunk instanceof Chunk c ? c : emptyChunk;
 	}
 	
 	public ChunkStatus getChunkStatus(ChunkPosition pos)
@@ -174,6 +175,11 @@ public class World implements Ticks.ITickHandler
 			else if(chunk instanceof PregenChunk) return ChunkStatus.PREGEN;
 			else return ChunkStatus.LOADED;
 		}
+	}
+	
+	public IChunk emptyChunk()
+	{
+		return emptyChunk;
 	}
 	
 	public int getBlockIdx(int x, int y, int z, MissingChunkAction missingAction)

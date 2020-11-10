@@ -9,8 +9,7 @@ layout ( binding = 5) uniform sampler2DArray texSamplers[TEXTURE_ARRAY_COUNT];
 
 layout (location = 0) in vec2 uv;
 layout (location = 1) in vec3 normal;
-layout (location = 2) in float light;
-layout (location = 3) in vec3 position;
+layout (location = 2) in vec3 position;
 
 layout (location = 0) out vec4 color;
 
@@ -18,5 +17,5 @@ void main() {
 	int triangleId = (baseTriangleId + gl_PrimitiveID) >> 1;
 	uint layer = texelFetch(texLayerSampler, triangleId).x;
 
-	color = texture(texSamplers[layer >> 11], vec3(uv, layer & 0x7FF)) * vec4(texelFetch(tintSampler, triangleId).xyz, 1.0) * vec4(light, light, light, 1.0);
+	color = texture(texSamplers[layer >> 11], vec3(uv, layer & 0x7FF)) * vec4(texelFetch(tintSampler, triangleId).xyz, 1.0);
 }

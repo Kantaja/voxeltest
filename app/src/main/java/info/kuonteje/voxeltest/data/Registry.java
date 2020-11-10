@@ -70,6 +70,8 @@ public class Registry<T extends RegistryEntry<T>> implements Iterable<T>
 			idToIdx.put(id, idx);
 			idxToObj.put(idx, obj);
 			idToObj.put(id, obj);
+			
+			obj.setIdx(idx);
 		}
 		
 		return obj;

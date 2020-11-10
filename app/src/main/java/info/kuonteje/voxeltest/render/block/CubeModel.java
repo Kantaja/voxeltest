@@ -17,7 +17,6 @@ import org.lwjgl.system.MemoryUtil;
 
 import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.block.Block;
-import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.EntryId;
 import info.kuonteje.voxeltest.data.RegistryEntry;
 import info.kuonteje.voxeltest.render.BlockTexture;
@@ -97,7 +96,7 @@ public class CubeModel extends BlockModel
 	
 	public CubeModel setAll(BlockTexture texture)
 	{
-		int idx = DefaultRegistries.BLOCK_TEXTURES.getIdx(texture);
+		int idx = texture.getIdx();
 		
 		north = idx;
 		south = idx;
@@ -111,7 +110,7 @@ public class CubeModel extends BlockModel
 	
 	public CubeModel setSide(BlockTexture texture)
 	{
-		int idx = DefaultRegistries.BLOCK_TEXTURES.getIdx(texture);
+		int idx = texture.getIdx();
 		
 		north = idx;
 		south = idx;
@@ -123,7 +122,7 @@ public class CubeModel extends BlockModel
 	
 	public CubeModel setTopBottom(BlockTexture texture)
 	{
-		int idx = DefaultRegistries.BLOCK_TEXTURES.getIdx(texture);
+		int idx = texture.getIdx();
 		
 		top = idx;
 		bottom = idx;
@@ -133,37 +132,37 @@ public class CubeModel extends BlockModel
 	
 	public CubeModel setNorth(BlockTexture texture)
 	{
-		north = DefaultRegistries.BLOCK_TEXTURES.getIdx(texture);
+		north = texture.getIdx();
 		return this;
 	}
 	
 	public CubeModel setSouth(BlockTexture texture)
 	{
-		south = DefaultRegistries.BLOCK_TEXTURES.getIdx(texture);
+		south = texture.getIdx();
 		return this;
 	}
 	
 	public CubeModel setEast(BlockTexture texture)
 	{
-		east = DefaultRegistries.BLOCK_TEXTURES.getIdx(texture);
+		east = texture.getIdx();
 		return this;
 	}
 	
 	public CubeModel setWest(BlockTexture texture)
 	{
-		west = DefaultRegistries.BLOCK_TEXTURES.getIdx(texture);
+		west = texture.getIdx();
 		return this;
 	}
 	
 	public CubeModel setTop(BlockTexture texture)
 	{
-		top = DefaultRegistries.BLOCK_TEXTURES.getIdx(texture);
+		top = texture.getIdx();
 		return this;
 	}
 	
 	public CubeModel setBottom(BlockTexture texture)
 	{
-		bottom = DefaultRegistries.BLOCK_TEXTURES.getIdx(texture);
+		bottom = texture.getIdx();
 		return this;
 	}
 	

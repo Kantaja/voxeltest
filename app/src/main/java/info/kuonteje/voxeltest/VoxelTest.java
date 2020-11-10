@@ -29,6 +29,8 @@ import info.kuonteje.voxeltest.world.World;
 
 public class VoxelTest
 {
+	public static final String DEFAULT_DOMAIN = "voxeltest";
+	
 	public static final Path CFG_PATH = Paths.get("config");
 	
 	public static final Console CONSOLE = new Console(CFG_PATH);
@@ -81,7 +83,7 @@ public class VoxelTest
 			
 			camera = new Camera(window::getKey, window::getMouse);
 			
-			//window.setSwapInterval(1);
+			window.setSwapInterval(1);
 			
 			Ticks.addTickHandler(world = new World());
 			addShutdownHook(world::destroy);
