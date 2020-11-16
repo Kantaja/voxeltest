@@ -6,7 +6,6 @@ import static org.lwjgl.opengl.GL30C.*;
 import static org.lwjgl.opengl.GL43C.*;
 import static org.lwjgl.opengl.GL45C.*;
 
-import java.nio.FloatBuffer;
 import java.util.Comparator;
 import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -15,10 +14,10 @@ import java.util.concurrent.Phaser;
 import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
+import org.joml.Vector3f;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.NVXGPUMemoryInfo;
-import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 import info.kuonteje.voxeltest.VoxelTest;
@@ -93,6 +92,11 @@ public class Renderer
 	private final NavigableSet<IRenderable> solidObjects = new ConcurrentSkipListSet<>(solidComparator);
 	private final NavigableSet<IRenderable> translucentObjects = new ConcurrentSkipListSet<>(translucentComparator);
 	
+	private double sunAzimuth = 115.0;
+	private double sunElevation = 16.0;
+	
+	private final Vector3f sunDir = new Vector3f();
+	
 	public Renderer(Console console, Window window, int width, int height)
 	{
 		caps = GL.createCapabilities();
@@ -128,8 +132,8 @@ public class Renderer
 		
 		postProcessor = new PostProcessor(console, framebuffer, width, height);
 		
-		solidShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("solid_defer").create();
-		translucentShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("block").create();
+		solidShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("solid_defer", "chunk_frag_uniforms").create();
+		translucentShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("translucent", "chunk_frag_uniforms").create();
 		
 		// TODO AMD/intel alternatives
 		// do intel gpus even support 4.5?
@@ -181,21 +185,6 @@ public class Renderer
 		}
 	}
 	
-	private void uploadMatrix(int handle, Matrix4f matrix)
-	{
-		if(handle >= 0)
-		{
-			try(MemoryStack stack = MemoryStack.stackPush())
-			{
-				FloatBuffer matrixBuf = stack.mallocFloat(16);
-				matrix.get(matrixBuf);
-				glUniformMatrix4fv(handle, false, matrixBuf);
-			}
-		}
-	}
-	
-	//private static final Matrix4f model = new Matrix4f();
-	
 	public void beginFrame(Camera camera)
 	{
 		currentCamera = camera;
@@ -216,12 +205,18 @@ public class Renderer
 			{
 				perspective.mul(camera.getView(), pv);
 				cullingFrustum.set(pv, false);
+				
+				solidShader.upload("pv", pv);
+				translucentShader.upload("pv", pv);
 			}
 		}
 		
 		updatePerspective = false;
 		
 		camera.getInterpPosition(cameraPosition);
+		
+		sunElevation += 0.01;
+		updateSunAngle();
 		
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_CULL_FACE);
@@ -231,10 +226,7 @@ public class Renderer
 		
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
-		BlockTextures.getArray().bind(ChunkShaderBindings.TEX_SAMPLERS);
-		
-		uploadMatrix(ChunkShaderBindings.PV_MATRIX, pv);
-		glUniform1i(ChunkShaderBindings.BASE_TRIANGLE_ID, 0);
+		BlockTextures.getArray().bind(BlockTextures.ARRAY_TEXTURE_UNIT);
 	}
 	
 	// adding to the skip lists shows up as the biggest cpu time sink, but it's cheaper than adding to an array list then sorting it
@@ -276,6 +268,8 @@ public class Renderer
 		
 		solidPhaser.arriveAndAwaitAdvance();
 		
+		// Polling allocates a SimpleImmutableEntry for EVERY object
+		// reimplement the entire container?
 		while((renderable = solidObjects.pollFirst()) != null)
 		{
 			renderable.render();
@@ -292,12 +286,10 @@ public class Renderer
 		
 		translucentShader.bind();
 		
-		BlockTextures.getArray().bind(ChunkShaderBindings.TEX_SAMPLERS);
+		BlockTextures.getArray().bind(BlockTextures.ARRAY_TEXTURE_UNIT);
 		
 		glEnable(GL_CULL_FACE);
 		glEnable(GL_DEPTH_TEST);
-		
-		uploadMatrix(ChunkShaderBindings.PV_MATRIX, pv);
 		
 		translucentPhaser.arriveAndAwaitAdvance();
 		
@@ -352,6 +344,23 @@ public class Renderer
 		return Texture.wrap(width, height, texture);
 	}
 	
+	private void updateSunAngle()
+	{
+		double az = Math.toRadians(sunAzimuth);
+		double el = Math.toRadians(sunElevation);
+		
+		double sinAz = Math.sin(az);
+		double cosAz = Math.cos(az);
+		
+		double sinEl = Math.sin(el);
+		double cosEl = Math.cos(el);
+		
+		sunDir.set(sinAz * cosEl, sinEl, -cosAz * cosEl).normalize();
+		
+		GBuffer.getDefaultShader().upload("sunDir", sunDir);
+		//translucentShader.upload("sunDir", sunDir);
+	}
+	
 	public Camera getCurrentCamera()
 	{
 		return currentCamera;
@@ -360,5 +369,15 @@ public class Renderer
 	public PostProcessor getPostProcessor()
 	{
 		return postProcessor;
+	}
+	
+	public ShaderProgram getSolidShader()
+	{
+		return solidShader;
+	}
+	
+	public ShaderProgram getTranslucentShader()
+	{
+		return translucentShader;
 	}
 }

@@ -1,5 +1,3 @@
-#version 450 core
-
 const uint TEXTURE_ARRAY_COUNT = 16;
 
 // Avoid context errors for invalid locations

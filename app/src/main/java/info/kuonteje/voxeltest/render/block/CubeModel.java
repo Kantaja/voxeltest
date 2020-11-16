@@ -20,7 +20,6 @@ import info.kuonteje.voxeltest.block.Block;
 import info.kuonteje.voxeltest.data.EntryId;
 import info.kuonteje.voxeltest.data.RegistryEntry;
 import info.kuonteje.voxeltest.render.BlockTexture;
-import info.kuonteje.voxeltest.render.ChunkShaderBindings;
 import info.kuonteje.voxeltest.render.IRenderable;
 import info.kuonteje.voxeltest.render.ModelUtil;
 import info.kuonteje.voxeltest.render.Texture;
@@ -329,8 +328,9 @@ public class CubeModel extends BlockModel
 			@Override
 			public void render()
 			{
-				texLayerTbo.bind(ChunkShaderBindings.TEX_LAYER_SAMPLER);
-				tintTbo.bind(ChunkShaderBindings.TINT_SAMPLER);
+				texLayerTbo.bind(0);
+				tintTbo.bind(1);
+				
 				glBindVertexArray(vao);
 				glDrawArrays(GL_TRIANGLES, 0, 36);
 			}

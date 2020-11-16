@@ -2,7 +2,6 @@ package info.kuonteje.voxeltest.render;
 
 import static org.lwjgl.opengl.GL11C.*;
 import static org.lwjgl.opengl.GL15C.*;
-import static org.lwjgl.opengl.GL20C.*;
 import static org.lwjgl.opengl.GL30C.*;
 import static org.lwjgl.opengl.GL31C.*;
 import static org.lwjgl.opengl.GL45C.*;
@@ -12,8 +11,13 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
+import info.kuonteje.voxeltest.VoxelTest;
+
 public class ChunkRenderer
 {
+	private static final int TEX_LAYER_TEXTURE_UNIT = 0;
+	private static final int TINT_TEXTURE_UNIT = 1;
+	
 	private static final int VERTICES_PER_TRIANGLE = 3;
 	private static final int TEX_COORDS_PER_TRIANGLE = 3;
 	
@@ -168,8 +172,9 @@ public class ChunkRenderer
 	{
 		if(solidTriangles > 0)
 		{
-			texLayerTbo.bind(ChunkShaderBindings.TEX_LAYER_SAMPLER);
-			tintTbo.bind(ChunkShaderBindings.TINT_SAMPLER);
+			texLayerTbo.bind(TEX_LAYER_TEXTURE_UNIT);
+			tintTbo.bind(TINT_TEXTURE_UNIT);
+			
 			glBindVertexArray(vao);
 			glDrawArrays(GL_TRIANGLES, 0, solidTriangles * VERTICES_PER_TRIANGLE);
 		}
@@ -179,9 +184,12 @@ public class ChunkRenderer
 	{
 		if(translucentTriangles > 0)
 		{
-			glUniform1i(ChunkShaderBindings.BASE_TRIANGLE_ID, solidTriangles);
-			texLayerTbo.bind(ChunkShaderBindings.TEX_LAYER_SAMPLER);
-			tintTbo.bind(ChunkShaderBindings.TINT_SAMPLER);
+			ShaderProgram shader = VoxelTest.getRenderer().getTranslucentShader();
+			
+			texLayerTbo.bind(TEX_LAYER_TEXTURE_UNIT);
+			tintTbo.bind(TINT_TEXTURE_UNIT);
+			shader.upload("baseTriangleId", solidTriangles);
+			
 			glBindVertexArray(vao);
 			glDrawArrays(GL_TRIANGLES, solidTriangles * VERTICES_PER_TRIANGLE, translucentTriangles * VERTICES_PER_TRIANGLE);
 		}

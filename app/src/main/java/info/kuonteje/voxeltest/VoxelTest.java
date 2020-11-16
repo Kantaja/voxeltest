@@ -107,8 +107,6 @@ public class VoxelTest
 				delta = frameStart - previousTime;
 				previousTime = frameStart;
 				
-				//if(delta > 0.0083) System.out.println("Long frame delta (" + (Math.round(delta * 100000.0) / 100.0) + " ms)");
-				
 				accum += delta;
 				
 				if(accum >= 1.0)

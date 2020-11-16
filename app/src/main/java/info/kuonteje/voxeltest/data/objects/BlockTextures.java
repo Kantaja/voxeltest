@@ -12,6 +12,8 @@ import info.kuonteje.voxeltest.util.MathUtil;
 
 public class BlockTextures
 {
+	public static final int ARRAY_TEXTURE_UNIT = 2;
+	
 	public static final CvarI64 rLog2BlockTextureSize;
 	private static int blockTextureSize;
 	

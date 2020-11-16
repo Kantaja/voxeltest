@@ -13,6 +13,10 @@ import it.unimi.dsi.fastutil.objects.ObjectAVLTreeSet;
 
 public class ForwardFramebuffer
 {
+	// These are also texture units
+	private static final int COLOR_INDEX = 0;
+	private static final int DEPTH_INDEX = 1;
+	
 	public static final int vertexShaderObject;
 	public static final ShaderProgram identityShader;
 	
@@ -44,7 +48,7 @@ public class ForwardFramebuffer
 	
 	public static ShaderProgram createFbShader(String name)
 	{
-		return createFbShader(ShaderProgram.builder().fragment("post/" + name));
+		return createFbShader(ShaderProgram.builder().fragment("post/" + name, "post/all"));
 	}
 	
 	public static int getVao()
@@ -84,8 +88,8 @@ public class ForwardFramebuffer
 		
 		shader.bind();
 		
-		color.bind(0);
-		if(depthTexture != null) depthTexture.bind(1);
+		color.bind(COLOR_INDEX);
+		if(depthTexture != null) depthTexture.bind(DEPTH_INDEX);
 		
 		glBindVertexArray(vao);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
