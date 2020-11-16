@@ -3,6 +3,7 @@ package info.kuonteje.voxeltest.render;
 import static org.lwjgl.opengl.GL20C.*;
 import static org.lwjgl.opengl.GL32C.*;
 import static org.lwjgl.opengl.GL40C.*;
+import static org.lwjgl.opengl.GL43C.*;
 
 public enum ShaderType
 {
@@ -11,7 +12,7 @@ public enum ShaderType
 	TESSELATION_EVALUATION(".te", GL_TESS_EVALUATION_SHADER),
 	GEOMETRY(".g", GL_GEOMETRY_SHADER),
 	FRAGMENT(".f", GL_FRAGMENT_SHADER),
-	COMPUTE(".c", GL_TESS_CONTROL_SHADER);
+	COMPUTE(".c", GL_COMPUTE_SHADER);
 	
 	private final String suffix;
 	private final int glType;
