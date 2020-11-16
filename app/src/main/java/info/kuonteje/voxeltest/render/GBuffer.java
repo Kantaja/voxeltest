@@ -77,8 +77,6 @@ public class GBuffer
 		normal.bind(NORMAL_INDEX);
 		if(depth != null) depth.bind(DEPTH_INDEX);
 		
-		glEnablei(GL_BLEND, NORMAL_INDEX);
-		
 		glBindVertexArray(ForwardFramebuffer.getVao());
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 	}
@@ -121,7 +119,6 @@ public class GBuffer
 	private static void bindDraw(int target, int fbo)
 	{
 		glBindFramebuffer(target, fbo);
-		glDisablei(GL_BLEND, NORMAL_INDEX); // normal is written with 0 alpha
 	}
 	
 	public void destroy()
