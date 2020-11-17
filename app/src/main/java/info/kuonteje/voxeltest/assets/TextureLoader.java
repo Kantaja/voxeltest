@@ -2,6 +2,7 @@ package info.kuonteje.voxeltest.assets;
 
 import static org.lwjgl.opengl.GL11C.*;
 import static org.lwjgl.opengl.GL12C.*;
+import static org.lwjgl.opengl.GL21C.*;
 import static org.lwjgl.opengl.GL45C.*;
 
 import java.awt.image.BufferedImage;
@@ -134,7 +135,7 @@ public class TextureLoader
 			
 			texture = glCreateTextures(GL_TEXTURE_2D);
 			
-			glTextureStorage2D(texture, mipmap ? (1 + (int)Math.round(MathUtil.log2((double)width)) - mipmapBase) : 1, GL_RGBA8, width, height);
+			glTextureStorage2D(texture, mipmap ? (1 + (int)Math.round(MathUtil.log2((double)width)) - mipmapBase) : 1, GL_SRGB8_ALPHA8, width, height);
 			glTextureSubImage2D(texture, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
 		}
 		finally

@@ -65,9 +65,13 @@ public class Renderer
 	private Texture depthTexture = null;
 	
 	private GBuffer solidGBuffer = null;
-	private ForwardFramebuffer framebuffer = null;
+	private ForwardFramebuffer hdrFramebuffer = null;
+	private ForwardFramebuffer ldrFramebuffer = null;
+	
+	private final ShaderProgram tonemapShader;
 	
 	private final PostProcessor postProcessor;
+	private final ShaderProgram finalShader;
 	
 	private int width = 0;
 	private int height = 0;
@@ -130,7 +134,11 @@ public class Renderer
 		
 		window.setResizeCallback(this::resize);
 		
-		postProcessor = new PostProcessor(console, framebuffer, width, height);
+		tonemapShader = ForwardFramebuffer.createFbShader("tonemap");
+		
+		postProcessor = new PostProcessor(console, ldrFramebuffer, width, height);
+		
+		finalShader = ForwardFramebuffer.createFbShader("final");
 		
 		solidShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("solid_defer", "chunk_frag_uniforms").create();
 		translucentShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("translucent", "chunk_frag_uniforms").create();
@@ -278,7 +286,7 @@ public class Renderer
 		glDisable(GL_CULL_FACE);
 		glDisable(GL_DEPTH_TEST);
 		
-		framebuffer.bind();
+		hdrFramebuffer.bind();
 		
 		glClear(GL_COLOR_BUFFER_BIT);
 		
@@ -301,10 +309,13 @@ public class Renderer
 		glDisable(GL_CULL_FACE);
 		glDisable(GL_DEPTH_TEST);
 		
+		ldrFramebuffer.bind();
+		hdrFramebuffer.draw(tonemapShader, null);
+		
 		ForwardFramebuffer front = postProcessor.run();
 		
 		front.unbind();
-		front.draw();
+		front.draw(finalShader, null);
 		
 		previousCamera = currentCamera;
 		currentCamera = null;
@@ -320,8 +331,11 @@ public class Renderer
 			if(solidGBuffer != null) solidGBuffer.destroy();
 			solidGBuffer = new GBuffer(depthTexture, width, height);
 			
-			if(framebuffer != null) framebuffer.destroy();
-			framebuffer = new ForwardFramebuffer(depthTexture, width, height);
+			if(hdrFramebuffer != null) hdrFramebuffer.destroy();
+			hdrFramebuffer = new ForwardFramebuffer(depthTexture, width, height, true);
+			
+			if(ldrFramebuffer != null) ldrFramebuffer.destroy();
+			ldrFramebuffer = new ForwardFramebuffer(null, width, height, false);
 			
 			glViewport(0, 0, width, height);
 			
@@ -330,7 +344,7 @@ public class Renderer
 			
 			dirtyPerspective();
 			
-			if(postProcessor != null) postProcessor.resize(framebuffer, width, height);
+			if(postProcessor != null) postProcessor.resize(ldrFramebuffer, width, height);
 			
 			System.out.println("Resized to " + width + "x" + height);
 		}

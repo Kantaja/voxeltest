@@ -59,12 +59,12 @@ public class ForwardFramebuffer
 	private final int framebuffer;
 	private final Texture color, depth;
 	
-	public ForwardFramebuffer(Texture depthTexture, int width, int height)
+	public ForwardFramebuffer(Texture depthTexture, int width, int height, boolean fp)
 	{
 		framebuffer = glCreateFramebuffers();
 		
 		int colorBuffer = glCreateTextures(GL_TEXTURE_2D);
-		glTextureStorage2D(colorBuffer, 1, GL_RGB10_A2, width, height);
+		glTextureStorage2D(colorBuffer, 1, fp ? GL_RGBA16F : GL_RGBA16, width, height);
 		glNamedFramebufferTexture(framebuffer, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
 		
 		this.color = Texture.wrap(width, height, colorBuffer);

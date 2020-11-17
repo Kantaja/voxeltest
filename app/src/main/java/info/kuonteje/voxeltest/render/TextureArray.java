@@ -1,6 +1,7 @@
 package info.kuonteje.voxeltest.render;
 
 import static org.lwjgl.opengl.GL11C.*;
+import static org.lwjgl.opengl.GL21C.*;
 import static org.lwjgl.opengl.GL30C.*;
 import static org.lwjgl.opengl.GL45C.*;
 
@@ -42,7 +43,7 @@ public class TextureArray
 		glTextureParameteri(array, GL_TEXTURE_MIN_FILTER, mipmap ? GL_NEAREST_MIPMAP_LINEAR : GL_NEAREST);
 		glTextureParameteri(array, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		
-		glTextureStorage3D(array, mipmap ? (1 + (int)Math.round(MathUtil.log2((double)width))) : 1, GL_RGBA8, width, height, layers);
+		glTextureStorage3D(array, mipmap ? (1 + (int)Math.round(MathUtil.log2((double)width))) : 1, GL_SRGB8_ALPHA8, width, height, layers);
 		
 		texture = Texture.wrap(width, height, array);
 	}

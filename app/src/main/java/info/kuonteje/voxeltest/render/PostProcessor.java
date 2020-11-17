@@ -40,7 +40,7 @@ public class PostProcessor
 			this.front = front;
 			
 			if(back != null) back.destroy();
-			back = new ForwardFramebuffer(null, width, height);
+			back = new ForwardFramebuffer(null, width, height, false);
 			
 			this.width = width;
 			this.height = height;

@@ -5,7 +5,7 @@ layout ( binding = 3) uniform sampler2D depth;
 
 uniform float ambient = 0.3;
 uniform vec3 sunDir;
-uniform float sunIntensity = 2.0;
+uniform float sunIntensity = 6.0;
 
 layout (location = 0) in vec2 uv;
 layout (location = 0) out vec4 color;
