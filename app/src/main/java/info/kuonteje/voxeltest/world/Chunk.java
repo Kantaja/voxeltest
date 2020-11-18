@@ -16,7 +16,7 @@ import info.kuonteje.voxeltest.block.tag.ITranslucentBlock;
 import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.render.ChunkRenderable;
 import info.kuonteje.voxeltest.render.ChunkRenderer;
-import info.kuonteje.voxeltest.render.IRenderable;
+import info.kuonteje.voxeltest.render.Renderable;
 import info.kuonteje.voxeltest.render.block.BlockModel;
 import info.kuonteje.voxeltest.util.ConcurrentTimer;
 import it.unimi.dsi.fastutil.ints.IntAVLTreeSet;
@@ -325,12 +325,12 @@ public final class Chunk implements IChunk
 		return false;
 	}
 	
-	public IRenderable solid()
+	public Renderable solid()
 	{
 		return solid;
 	}
 	
-	public IRenderable translucent()
+	public Renderable translucent()
 	{
 		return translucent;
 	}

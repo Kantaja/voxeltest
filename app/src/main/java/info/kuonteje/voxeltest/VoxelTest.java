@@ -80,7 +80,7 @@ public class VoxelTest
 			threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 			
 			window = new Window("VoxelTest", 1366, 768);
-			renderer = new Renderer(CONSOLE, window, 1366, 768);
+			renderer = new Renderer(CONSOLE, window);
 			
 			DefaultRegistries.init();
 			

@@ -6,7 +6,7 @@ import java.nio.IntBuffer;
 
 import info.kuonteje.voxeltest.data.EntryId;
 import info.kuonteje.voxeltest.data.RegistryEntry;
-import info.kuonteje.voxeltest.render.IRenderable;
+import info.kuonteje.voxeltest.render.Renderable;
 
 public abstract class BlockModel extends RegistryEntry<BlockModel>
 {
@@ -22,9 +22,8 @@ public abstract class BlockModel extends RegistryEntry<BlockModel>
 	
 	public abstract void getVertices(FloatBuffer buf, int x, int y, int z, boolean northVisible, boolean southVisible, boolean eastVisible, boolean westVisible, boolean topVisible, boolean bottomVisible);
 	public abstract void getTextureCoords(FloatBuffer buf, boolean northVisible, boolean southVisible, boolean eastVisible, boolean westVisible, boolean topVisible, boolean bottomVisible);
-	public abstract void getLight(FloatBuffer buf, boolean northVisible, boolean southVisible, boolean eastVisible, boolean westVisible, boolean topVisible, boolean bottomVisible);
 	public abstract void getTextureLayers(IntBuffer buf, boolean northVisible, boolean southVisible, boolean eastVisible, boolean westVisible, boolean topVisible, boolean bottomVisible);
 	public abstract void getTints(ByteBuffer buf, boolean northVisible, boolean southVisible, boolean eastVisible, boolean westVisible, boolean topVisible, boolean bottomVisible);
 	
-	public abstract IRenderable createDebugRenderable();
+	public abstract Renderable createDebugRenderable();
 }

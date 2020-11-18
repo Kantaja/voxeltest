@@ -7,9 +7,7 @@ import static org.lwjgl.opengl.GL43C.*;
 import static org.lwjgl.opengl.GL45C.*;
 
 import java.util.Comparator;
-import java.util.NavigableSet;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.Phaser;
+import java.util.SortedSet;
 
 import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
@@ -27,26 +25,22 @@ import info.kuonteje.voxeltest.console.CvarF64;
 import info.kuonteje.voxeltest.console.CvarI64;
 import info.kuonteje.voxeltest.console.CvarRegistry;
 import info.kuonteje.voxeltest.data.objects.BlockTextures;
+import it.unimi.dsi.fastutil.objects.ObjectRBTreeSet;
 
 public class Renderer
 {
-	// THIS INTENTIONALLY VIOLATES THE CONTRACT OF COMPARATOR
-	// If compare(a, b) returned 0 for a != b, only one object with the same distance from the camera would be rendered
-	// in the case that two equal-comparing but different objects are compared again there is no issue with switching the order, this is only used for maintaining a skip list
-	private static class RenderableComparator implements Comparator<IRenderable>
+	private static class RenderableComparator implements Comparator<Renderable>
 	{
 		@Override
-		public int compare(IRenderable a, IRenderable b)
+		public int compare(Renderable a, Renderable b)
 		{
 			int cmp = Double.compare(a.distanceSqToCamera(), b.distanceSqToCamera());
-			
-			if(cmp == 0) return a == b ? 0 : -1;
-			else return cmp;
+			return cmp == 0 ? Long.compare(a.getObjectId(), b.getObjectId()) : cmp;
 		}
 	}
 	
-	private static final Comparator<IRenderable> solidComparator = new RenderableComparator();
-	private static final Comparator<IRenderable> translucentComparator = solidComparator.reversed();
+	private static final Comparator<Renderable> solidComparator = new RenderableComparator();
+	private static final Comparator<Renderable> translucentComparator = solidComparator.reversed();
 	
 	private final GLCapabilities caps;
 	
@@ -92,20 +86,18 @@ public class Renderer
 	
 	private final ShaderProgram solidShader, translucentShader;
 	
-	private final Phaser solidPhaser = new Phaser(1);
-	private final Phaser translucentPhaser = new Phaser(1);
-	
-	private final NavigableSet<IRenderable> solidObjects = new ConcurrentSkipListSet<>(solidComparator);
-	private final NavigableSet<IRenderable> translucentObjects = new ConcurrentSkipListSet<>(translucentComparator);
+	// this has become faster to do synchronously by a decent (~10%) margin since last week and I don't know why
+	private final SortedSet<Renderable> solidObjects = new ObjectRBTreeSet<>(solidComparator);
+	private final SortedSet<Renderable> translucentObjects = new ObjectRBTreeSet<>(translucentComparator);
 	
 	private double sunAzimuth = 115.0;
 	private double sunElevation = 16.0;
 	
 	private final Vector3f sunDir = new Vector3f();
 	
-	public Renderer(Console console, Window window, int width, int height)
+	public Renderer(Console console, Window window)
 	{
-		caps = GL.createCapabilities();
+		caps = GL.createCapabilities(true);
 		
 		setupOpenGl();
 		
@@ -132,7 +124,7 @@ public class Renderer
 		aspectHor = (float)rAspectHor.get();
 		aspectVer = (float)rAspectVer.get();
 		
-		resize(width, height);
+		resize(window.getWidth(), window.getHeight());
 		
 		window.setResizeCallback(this::resize);
 		
@@ -228,91 +220,46 @@ public class Renderer
 		
 		camera.getInterpPosition(cameraPosition);
 		
-		sunElevation += 0.01;
-		updateSunAngle();
-		
-		glEnable(GL_DEPTH_TEST);
-		glEnable(GL_CULL_FACE);
-		
-		solidGBuffer.bind();
-		solidShader.bind();
-		
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		
-		BlockTextures.getArray().bind(BlockTextures.ARRAY_TEXTURE_UNIT);
+		solidObjects.clear();
+		translucentObjects.clear();
 	}
 	
-	// adding to the skip lists shows up as the biggest cpu time sink, but it's cheaper than adding to an array list then sorting it
-	public void renderSolid(IRenderable renderable)
+	public void renderSolid(Renderable renderable)
 	{
-		solidPhaser.register();
-		
-		VoxelTest.getThreadPool().execute(() ->
+		if(renderable.shouldRender(cullingFrustum))
 		{
-			if(renderable.shouldRender(cullingFrustum))
-			{
-				renderable.setCameraPosition(cameraPosition);
-				solidObjects.add(renderable);
-			}
-			
-			solidPhaser.arriveAndDeregister();
-		});
+			renderable.setCameraPosition(cameraPosition);
+			solidObjects.add(renderable);
+		}
 	}
 	
-	public void renderTranslucent(IRenderable renderable)
+	public void renderTranslucent(Renderable renderable)
 	{
-		translucentPhaser.register();
-		
-		VoxelTest.getThreadPool().execute(() ->
+		if(renderable.shouldRender(cullingFrustum))
 		{
-			if(renderable.shouldRender(cullingFrustum))
-			{
-				renderable.setCameraPosition(cameraPosition);
-				translucentObjects.add(renderable);
-			}
-			
-			translucentPhaser.arriveAndDeregister();
-		});
+			renderable.setCameraPosition(cameraPosition);
+			translucentObjects.add(renderable);
+		}
 	}
 	
 	public void completeFrame()
 	{
-		IRenderable renderable;
+		sunElevation += 0.01;
+		updateSunAngle();
 		
-		solidPhaser.arriveAndAwaitAdvance();
-		
-		// Polling allocates a SimpleImmutableEntry for EVERY object
-		// reimplement the entire container?
-		while((renderable = solidObjects.pollFirst()) != null)
+		if(!solidObjects.isEmpty())
 		{
-			renderable.render();
+			solidGBuffer.bind();
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			
+			renderSolids();
 		}
-		
-		glDisable(GL_CULL_FACE);
-		glDisable(GL_DEPTH_TEST);
 		
 		hdrFramebuffer.bind();
-		
 		glClear(GL_COLOR_BUFFER_BIT);
 		
-		solidGBuffer.draw();
-		
-		translucentShader.bind();
-		
-		BlockTextures.getArray().bind(BlockTextures.ARRAY_TEXTURE_UNIT);
-		
-		glEnable(GL_CULL_FACE);
-		glEnable(GL_DEPTH_TEST);
-		
-		translucentPhaser.arriveAndAwaitAdvance();
-		
-		while((renderable = translucentObjects.pollFirst()) != null)
-		{
-			renderable.render();
-		}
-		
-		glDisable(GL_CULL_FACE);
-		glDisable(GL_DEPTH_TEST);
+		if(!solidObjects.isEmpty()) solidGBuffer.draw();
+		if(!translucentObjects.isEmpty()) renderTranslucents();
 		
 		ldrFramebuffer.bind();
 		hdrFramebuffer.draw(tonemapShader, null);
@@ -324,6 +271,36 @@ public class Renderer
 		
 		previousCamera = currentCamera;
 		currentCamera = null;
+	}
+	
+	private void renderSolids()
+	{
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_CULL_FACE);
+		
+		solidShader.bind();
+		
+		BlockTextures.getArray().bind(BlockTextures.ARRAY_TEXTURE_UNIT);
+		
+		solidObjects.forEach(Renderable::render);
+		
+		glDisable(GL_CULL_FACE);
+		glDisable(GL_DEPTH_TEST);
+	}
+	
+	private void renderTranslucents()
+	{
+		glEnable(GL_CULL_FACE);
+		glEnable(GL_DEPTH_TEST);
+		
+		translucentShader.bind();
+		
+		BlockTextures.getArray().bind(BlockTextures.ARRAY_TEXTURE_UNIT);
+		
+		translucentObjects.forEach(Renderable::render);
+		
+		glDisable(GL_CULL_FACE);
+		glDisable(GL_DEPTH_TEST);
 	}
 	
 	public void resize(int width, int height)

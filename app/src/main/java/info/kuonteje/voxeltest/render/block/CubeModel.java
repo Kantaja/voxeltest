@@ -9,9 +9,9 @@ import static org.lwjgl.opengl.GL45.*;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
-import java.util.Arrays;
 
 import org.joml.FrustumIntersection;
+import org.joml.Vector3d;
 import org.joml.Vector3dc;
 import org.lwjgl.system.MemoryUtil;
 
@@ -20,8 +20,8 @@ import info.kuonteje.voxeltest.block.Block;
 import info.kuonteje.voxeltest.data.EntryId;
 import info.kuonteje.voxeltest.data.RegistryEntry;
 import info.kuonteje.voxeltest.render.BlockTexture;
-import info.kuonteje.voxeltest.render.IRenderable;
 import info.kuonteje.voxeltest.render.ModelUtil;
+import info.kuonteje.voxeltest.render.Renderable;
 import info.kuonteje.voxeltest.render.Texture;
 
 public class CubeModel extends BlockModel
@@ -41,27 +41,6 @@ public class CubeModel extends BlockModel
 	private static final float[] westTc = { 0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 0.0F, 0.0F, 0.0F };
 	private static final float[] topTc = { 0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 0.0F, 0.0F, 0.0F };
 	private static final float[] bottomTc = { 0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 0.0F, 0.0F, 0.0F };
-	
-	private static final float vTopTint = 1.0F;
-	//	private static final float vSideTint = 0.7F;
-	private static final float vNorthSouthTint = 0.8F;
-	private static final float vEastWestTint = 0.7F;
-	private static final float vBottomTint = 0.5F;
-	
-	private static final float[] topTint = new float[6];
-	//	private static final float[] sideTint = new float[6];
-	private static final float[] northSouthTint = new float[6];
-	private static final float[] eastWestTint = new float[6];
-	private static final float[] bottomTint = new float[6];
-	
-	static
-	{
-		Arrays.fill(topTint, vTopTint);
-		//		Arrays.fill(sideTint, vSideTint);
-		Arrays.fill(northSouthTint, vNorthSouthTint);
-		Arrays.fill(eastWestTint, vEastWestTint);
-		Arrays.fill(bottomTint, vBottomTint);
-	}
 	
 	private int tint = 0xFFFFFF;
 	
@@ -188,17 +167,6 @@ public class CubeModel extends BlockModel
 	}
 	
 	@Override
-	public void getLight(FloatBuffer buf, boolean northVisible, boolean southVisible, boolean eastVisible, boolean westVisible, boolean topVisible, boolean bottomVisible)
-	{
-		if(northVisible) buf.put(northSouthTint);//buf.put(sideTint);
-		if(southVisible) buf.put(northSouthTint);//buf.put(sideTint);
-		if(eastVisible) buf.put(eastWestTint);//buf.put(sideTint);
-		if(westVisible) buf.put(eastWestTint);//buf.put(sideTint);
-		if(topVisible) buf.put(topTint);
-		if(bottomVisible) buf.put(bottomTint);
-	}
-	
-	@Override
 	public void getTextureLayers(IntBuffer buf, boolean northVisible, boolean southVisible, boolean eastVisible, boolean westVisible, boolean topVisible, boolean bottomVisible)
 	{
 		if(northVisible) buf.put(north);
@@ -221,7 +189,7 @@ public class CubeModel extends BlockModel
 	}
 	
 	@Override
-	public IRenderable createDebugRenderable()
+	public Renderable createDebugRenderable()
 	{
 		int vao = glCreateVertexArrays();
 		int vertexVbo = glCreateBuffers();
@@ -249,19 +217,6 @@ public class CubeModel extends BlockModel
 		finally
 		{
 			MemoryUtil.memFree(texCoordData);
-		}
-		
-		int lightVbo = glCreateBuffers();
-		FloatBuffer lightData = MemoryUtil.memAllocFloat(36 * 1);
-		
-		try
-		{
-			getLight(lightData, true, true, true, true, true, true);
-			glNamedBufferStorage(lightVbo, lightData.flip(), 0);
-		}
-		finally
-		{
-			MemoryUtil.memFree(lightData);
 		}
 		
 		int texLayerVbo = glCreateBuffers();
@@ -300,7 +255,6 @@ public class CubeModel extends BlockModel
 		
 		bindVbo(vao, vertexVbo, 0, 3);
 		bindVbo(vao, texCoordVbo, 1, 2);
-		bindVbo(vao, lightVbo, 2, 1);
 		
 		VoxelTest.addShutdownHook(() ->
 		{
@@ -311,13 +265,18 @@ public class CubeModel extends BlockModel
 			
 			glDeleteBuffers(vertexVbo);
 			glDeleteBuffers(texCoordVbo);
-			glDeleteBuffers(lightVbo);
 			glDeleteBuffers(texLayerVbo);
 		});
 		
-		return new IRenderable()
+		return new Renderable()
 		{
-			private double distanceSqToCamera = 0.0;
+			private final Vector3d center = new Vector3d(0.5, 0.5, 0.5);
+			
+			@Override
+			public Vector3dc getCenter()
+			{
+				return center;
+			}
 			
 			@Override
 			public boolean shouldRender(FrustumIntersection frustum)
@@ -333,18 +292,6 @@ public class CubeModel extends BlockModel
 				
 				glBindVertexArray(vao);
 				glDrawArrays(GL_TRIANGLES, 0, 36);
-			}
-			
-			@Override
-			public void setCameraPosition(Vector3dc position)
-			{
-				distanceSqToCamera = position.distanceSquared(0.5, 0.5, 0.5);
-			}
-			
-			@Override
-			public double distanceSqToCamera()
-			{
-				return distanceSqToCamera;
 			}
 		};
 	}

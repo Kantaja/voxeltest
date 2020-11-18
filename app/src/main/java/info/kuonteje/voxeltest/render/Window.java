@@ -259,6 +259,16 @@ public class Window
 		}
 	}
 	
+	public int getWidth()
+	{
+		return nwidth;
+	}
+	
+	public int getHeight()
+	{
+		return nheight;
+	}
+	
 	public long handle()
 	{
 		return window;

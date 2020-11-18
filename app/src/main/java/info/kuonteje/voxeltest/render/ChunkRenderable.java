@@ -7,15 +7,13 @@ import org.joml.Vector3dc;
 
 import info.kuonteje.voxeltest.world.Chunk;
 
-public class ChunkRenderable implements IRenderable
+public class ChunkRenderable extends Renderable
 {
 	private final Chunk chunk;
 	private final boolean solid;
 	
 	private Runnable renderFunc = null;
 	private IntSupplier triangleCountFunc = null;
-	
-	private double distanceSqToCamera = 0.0;
 	
 	public ChunkRenderable(Chunk chunk, boolean solid)
 	{
@@ -41,6 +39,12 @@ public class ChunkRenderable implements IRenderable
 	}
 	
 	@Override
+	public Vector3dc getCenter()
+	{
+		return chunk.getCenter();
+	}
+	
+	@Override
 	public boolean shouldRender(FrustumIntersection frustum)
 	{
 		return !chunk.empty() && renderFunc != null && triangleCountFunc.getAsInt() > 0 && chunk.testFrustum(frustum);
@@ -50,17 +54,5 @@ public class ChunkRenderable implements IRenderable
 	public void render()
 	{
 		renderFunc.run();
-	}
-	
-	@Override
-	public void setCameraPosition(Vector3dc position)
-	{
-		distanceSqToCamera = position.distanceSquared(chunk.getCenter());
-	}
-	
-	@Override
-	public double distanceSqToCamera()
-	{
-		return distanceSqToCamera;
 	}
 }
