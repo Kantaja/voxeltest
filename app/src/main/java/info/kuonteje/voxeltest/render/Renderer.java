@@ -62,6 +62,8 @@ public class Renderer
 	private volatile boolean customAspect;
 	private volatile float aspectHor, aspectVer;
 	
+	public final CvarF64 rGamma;
+	
 	private Texture depthTexture = null;
 	
 	private GBuffer solidGBuffer = null;
@@ -140,8 +142,11 @@ public class Renderer
 		
 		finalShader = ForwardFramebuffer.createFbShader("final");
 		
-		solidShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("solid_defer", "chunk_frag_uniforms").create();
-		translucentShader = ShaderProgram.builder().vertex("block").geometry("normals").fragment("translucent", "chunk_frag_uniforms").create();
+		solidShader = ShaderProgram.builder().vertex("block").fragment("solid_defer", "chunk_frag_uniforms").create();
+		translucentShader = ShaderProgram.builder().vertex("block").fragment("translucent", "chunk_frag_uniforms").create();
+		
+		rGamma = cvars.getCvarF64C("r_gamma", 2.2, Cvar.Flags.CONFIG, v -> Math.max(v, 0.0), (n, o) -> VoxelTest.addRenderHook(() -> finalShader.upload("gamma", (float)n)));
+		finalShader.upload("gamma", (float)rGamma.get());
 		
 		// TODO AMD/intel alternatives
 		// do intel gpus even support 4.5?

@@ -15,6 +15,6 @@ void main() {
 	}
 
 	albedoOut = texel * vec4(texelFetch(tintSampler, triangleId).xyz, 1.0);
-	positionOut = vec4(position, 1.0);
-	normalOut = vec4(normal, 1.0);
+	positionOut = vec4(vertexPos, 1.0);
+	normalOut = vec4(normalize(cross(dFdx(vertexPos), dFdy(vertexPos))), 1.0);
 }

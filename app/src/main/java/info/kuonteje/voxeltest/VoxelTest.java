@@ -38,6 +38,7 @@ public class VoxelTest
 	private static final List<Runnable> shutdownHooks = Collections.synchronizedList(new ArrayList<>());
 	
 	private static final Queue<Runnable> renderHooks = new ConcurrentLinkedQueue<>();
+	private static long renderThreadId = -1;
 	
 	private static ExecutorService threadPool;
 	
@@ -72,7 +73,7 @@ public class VoxelTest
 				}
 			}
 			
-			threadPool = Executors.newFixedThreadPool(16);
+			threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 			
 			window = new Window("VoxelTest", 1366, 768);
 			renderer = new Renderer(CONSOLE, window, 1366, 768);
@@ -83,7 +84,7 @@ public class VoxelTest
 			
 			camera = new Camera(window::getKey, window::getMouse);
 			
-			window.setSwapInterval(1);
+			//window.setSwapInterval(1);
 			
 			Ticks.addTickHandler(world = new World());
 			addShutdownHook(world::destroy);
@@ -93,6 +94,7 @@ public class VoxelTest
 			startConsoleInput();
 			
 			Thread.currentThread().setName("Render thread");
+			renderThreadId = Thread.currentThread().getId();
 			
 			window.captureMouse();
 			
@@ -182,9 +184,15 @@ public class VoxelTest
 		shutdownHooks.add(hook);
 	}
 	
+	public static void addRenderHook(Runnable hook, boolean forceSchedule)
+	{
+		if(!forceSchedule && Thread.currentThread().getId() == renderThreadId) hook.run();
+		else renderHooks.add(hook);
+	}
+	
 	public static void addRenderHook(Runnable hook)
 	{
-		renderHooks.add(hook);
+		addRenderHook(hook, false);
 	}
 	
 	public static boolean shouldQuit()
