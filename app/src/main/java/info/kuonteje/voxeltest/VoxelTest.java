@@ -18,6 +18,8 @@ import java.util.concurrent.Executors;
 import org.joml.Vector3d;
 
 import info.kuonteje.voxeltest.console.Console;
+import info.kuonteje.voxeltest.console.Cvar;
+import info.kuonteje.voxeltest.console.CvarI64;
 import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.RegistryManager;
 import info.kuonteje.voxeltest.render.Camera;
@@ -34,6 +36,8 @@ public class VoxelTest
 	public static final Path CFG_PATH = Paths.get("config");
 	
 	public static final Console CONSOLE = new Console(CFG_PATH);
+	
+	public static final CvarI64 vsyncInterval = CONSOLE.cvars().getCvarI64C("vsync_interval", 1L, Cvar.Flags.CONFIG, v -> Math.max(v, 0L), (n, o) -> addRenderHook(() -> getWindow().setSwapInterval((int)n)));
 	
 	private static final List<Runnable> shutdownHooks = Collections.synchronizedList(new ArrayList<>());
 	
@@ -84,7 +88,7 @@ public class VoxelTest
 			
 			camera = new Camera(window::getKey, window::getMouse);
 			
-			//window.setSwapInterval(1);
+			window.setSwapInterval((int)vsyncInterval.get());
 			
 			Ticks.addTickHandler(world = new World());
 			addShutdownHook(world::destroy);
