@@ -1,32 +1,41 @@
 package info.kuonteje.voxeltest.render;
 
 import static org.lwjgl.opengl.GL11C.*;
+import static org.lwjgl.opengl.GL15C.*;
 import static org.lwjgl.opengl.GL20C.*;
 import static org.lwjgl.opengl.GL30C.*;
+import static org.lwjgl.opengl.GL42C.*;
 import static org.lwjgl.opengl.GL43C.*;
 import static org.lwjgl.opengl.GL45C.*;
 
 import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
 import java.util.SortedSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
-import org.joml.Vector3f;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.NVXGPUMemoryInfo;
 import org.lwjgl.system.MemoryUtil;
 
 import info.kuonteje.voxeltest.VoxelTest;
-import info.kuonteje.voxeltest.console.Console;
 import info.kuonteje.voxeltest.console.Cvar;
 import info.kuonteje.voxeltest.console.CvarF64;
 import info.kuonteje.voxeltest.console.CvarI64;
 import info.kuonteje.voxeltest.console.CvarRegistry;
-import info.kuonteje.voxeltest.data.objects.BlockTextures;
+import info.kuonteje.voxeltest.render.light.DirectionalLight;
+import info.kuonteje.voxeltest.render.light.PointLight;
+import info.kuonteje.voxeltest.render.light.Sunlight;
+import info.kuonteje.voxeltest.util.MathUtil;
+import it.unimi.dsi.fastutil.objects.ObjectAVLTreeSet;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectRBTreeSet;
 
+// TODO this is a *mess*
 public class Renderer
 {
 	private static class RenderableComparator implements Comparator<Renderable>
@@ -42,108 +51,146 @@ public class Renderer
 	private static final Comparator<Renderable> solidComparator = new RenderableComparator();
 	private static final Comparator<Renderable> translucentComparator = solidComparator.reversed();
 	
-	private final GLCapabilities caps;
+	private static GLCapabilities caps;
 	
-	public final CvarF64 rClearRed, rClearGreen, rClearBlue, rClearAlpha;
-	private float clearRed, clearGreen, clearBlue, clearAlpha;
+	public static final CvarF64 rFov;
 	
-	public final CvarF64 rFov;
-	private volatile float fov;
+	public static final CvarI64 rCustomAspect;
+	public static final CvarF64 rAspectHor, rAspectVer;
 	
-	public final CvarI64 rCustomAspect;
-	public final CvarF64 rAspectHor, rAspectVer;
+	public static final CvarF64 rGamma;
 	
-	private volatile boolean customAspect;
-	private volatile float aspectHor, aspectVer;
+	public static final CvarI64 rShadowmapSize;
+	private static int shadowmapSize;
 	
-	public final CvarF64 rGamma;
+	private static DepthBuffer depthBuffer = null;
 	
-	private Texture depthTexture = null;
+	private static GBuffer solidGBuffer = null;
+	private static ForwardFramebuffer hdrFramebuffer = null;
+	private static ForwardFramebuffer ldrFramebuffer = null;
 	
-	private GBuffer solidGBuffer = null;
-	private ForwardFramebuffer hdrFramebuffer = null;
-	private ForwardFramebuffer ldrFramebuffer = null;
+	private static final ShaderProgram lumHistShader, lumCalcShader;
+	private static final ShaderBuffer luminanceData;
+	private static final SingleTexture finalLuminance;
+	private static ForwardFramebuffer quarterFramebuffer = null;
 	
-	private final ShaderProgram tonemapShader;
+	private static final ShaderProgram skyShader;
 	
-	private final PostProcessor postProcessor;
-	private final ShaderProgram finalShader;
+	private static final ShaderProgram tonemapShader;
 	
-	private int width = 0;
-	private int height = 0;
+	public static final CvarF64 rExposure;
 	
-	private Camera previousCamera = null;
-	private volatile Camera currentCamera = null;
+	private static final PostProcessor postProcessor;
+	private static final ShaderProgram finalShader;
 	
-	private final Vector3d cameraPosition = new Vector3d();
+	private static int width = 0;
+	private static int height = 0;
 	
-	private final Matrix4f perspective = new Matrix4f();
-	private volatile boolean updatePerspective = true;
+	private static DebugCamera previousCamera = null;
+	private static volatile DebugCamera currentCamera = null;
 	
-	private final Matrix4f pv = new Matrix4f();
+	private static final Vector3d cameraPosition = new Vector3d();
 	
-	private final FrustumIntersection cullingFrustum = new FrustumIntersection();
+	private static final Matrix4f perspective = new Matrix4f();
+	private static AtomicBoolean updatePerspective = new AtomicBoolean(false);
 	
-	private final ShaderProgram solidShader, translucentShader;
+	private static final Matrix4f pv = new Matrix4f();
+	
+	private static final FrustumIntersection cullingFrustum = new FrustumIntersection();
+	
+	public static final CvarF64 rAmbientStrength, rSunIntensity;
+	
+	private static final ShaderProgram solidShader, translucentShader;
+	private static final ShaderProgram depthShader;
+	private static final ShaderProgram sunAmbientShader, directionalShader, pointShader/*, spotShader*/;
+	
+	public static final CvarI64 rSsao;
 	
 	// this has become faster to do synchronously by a decent (~10%) margin since last week and I don't know why
-	private final SortedSet<Renderable> solidObjects = new ObjectRBTreeSet<>(solidComparator);
-	private final SortedSet<Renderable> translucentObjects = new ObjectRBTreeSet<>(translucentComparator);
+	private static final SortedSet<Renderable> solidObjects = new ObjectRBTreeSet<>(solidComparator);
+	private static final SortedSet<Renderable> translucentObjects = new ObjectRBTreeSet<>(translucentComparator);
 	
-	private double sunAzimuth = 115.0;
-	private double sunElevation = 16.0;
+	private static final Set<Renderable> allSolidObjects = new ObjectAVLTreeSet<>(Comparator.comparingLong(Renderable::getObjectId));
 	
-	private final Vector3f sunDir = new Vector3f();
+	private static double sunAzimuth = 115.0;
+	private static double sunElevation = 16.0;
 	
-	public Renderer(Console console, Window window)
+	private static final Sunlight sun;
+	
+	private static final List<DirectionalLight> directionalLights = new ObjectArrayList<>();
+	private static final List<PointLight> pointLights = new ObjectArrayList<>();
+	//private static final List<Spotlight> spotights = new ObjectArrayList<>();
+	
+	static
 	{
 		caps = GL.createCapabilities(true);
 		
 		setupOpenGl();
 		
-		CvarRegistry cvars = console.cvars();
+		CvarRegistry cvars = VoxelTest.CONSOLE.cvars();
 		
-		rClearRed = cvars.getCvarF64C("r_clear_red", 0.0, 0, CvarF64.ZERO_TO_ONE_TRANSFORMER, (n, o) -> VoxelTest.addRenderHook(() -> glClearColor(clearRed = (float)n, clearGreen, clearBlue, clearAlpha)));
-		rClearGreen = cvars.getCvarF64C("r_clear_green", 0.0, 0, CvarF64.ZERO_TO_ONE_TRANSFORMER, (n, o) -> VoxelTest.addRenderHook(() -> glClearColor(clearRed, clearGreen = (float)n, clearBlue, clearAlpha)));
-		rClearBlue = cvars.getCvarF64C("r_clear_blue", 0.0, 0, CvarF64.ZERO_TO_ONE_TRANSFORMER, (n, o) -> VoxelTest.addRenderHook(() -> glClearColor(clearRed, clearGreen, clearBlue = (float)n, clearAlpha)));
-		rClearAlpha = cvars.getCvarF64C("r_clear_alpha", 1.0, 0, CvarF64.ZERO_TO_ONE_TRANSFORMER, (n, o) -> VoxelTest.addRenderHook(() -> glClearColor(clearRed, clearGreen, clearBlue, clearAlpha = (float)n)));
+		rFov = cvars.getCvarF64C("r_fov", 85.0, Cvar.Flags.CONFIG, null, (n, o) -> dirtyPerspective());
 		
-		glClearColor(clearRed = (float)rClearRed.get(), clearGreen = (float)rClearGreen.get(), clearBlue = (float)rClearBlue.get(), clearAlpha = (float)rClearAlpha.get());
+		rCustomAspect = cvars.getCvarBoolC("r_custom_aspect", false, Cvar.Flags.CONFIG, (n, o) -> dirtyPerspective());
 		
-		rFov = cvars.getCvarF64C("r_fov", 85.0, Cvar.Flags.CONFIG, null, (n, o) -> { fov = (float)n; dirtyPerspective(); });
+		rAspectHor = cvars.getCvarF64C("r_aspect_hor", 16.0, Cvar.Flags.CONFIG, null, (n, o) -> dirtyPerspective());
+		rAspectVer = cvars.getCvarF64C("r_aspect_ver", 9.0, Cvar.Flags.CONFIG, null, (n, o) -> dirtyPerspective());
 		
-		rCustomAspect = cvars.getCvarI64C("r_custom_aspect", 0, Cvar.Flags.CONFIG, CvarI64.BOOL_TRANSFORMER, (n, o) -> { customAspect = n != 0L; dirtyPerspective(); });
+		rShadowmapSize = cvars.getCvarI64C("r_shadowmap_size", 2048L, Cvar.Flags.CONFIG, v -> Long.highestOneBit(Math.min(8192L, v)), (n, o) -> shadowmapSize = (int)n);
+		shadowmapSize = rShadowmapSize.getAsInt();
 		
-		rAspectHor = cvars.getCvarF64C("r_aspect_hor", 16.0, Cvar.Flags.CONFIG, null, (n, o) -> { aspectHor = (float)n; dirtyPerspective(); });
-		rAspectVer = cvars.getCvarF64C("r_aspect_ver", 9.0, Cvar.Flags.CONFIG, null, (n, o) -> { aspectVer = (float)n; dirtyPerspective(); });
+		lumHistShader = ShaderProgram.builder().compute("luminance_histogram").create();
+		lumCalcShader = ShaderProgram.builder().compute("luminance").create();
 		
-		fov = (float)rFov.get();
+		finalLuminance = SingleTexture.alloc2D(2, 1, GL_R32F, 1);
 		
-		customAspect = rCustomAspect.getAsBool();
+		luminanceData = ShaderBuffer.allocEmpty(256 * Integer.BYTES, 0);
 		
-		aspectHor = (float)rAspectHor.get();
-		aspectVer = (float)rAspectVer.get();
+		skyShader = ShaderProgram.builder().vertex("sky").fragment("sky").create();
 		
-		resize(window.getWidth(), window.getHeight());
+		tonemapShader = ForwardFramebuffer.createFbShader("hdr_final");
+		tonemapShader.upload("lumSampler", finalLuminance.getBindlessHandle());
 		
-		window.setResizeCallback(this::resize);
+		rExposure = cvars.getCvarF64C("r_exposure", 1.0, Cvar.Flags.CONFIG, v -> Math.max(v, 0.0), (n, o) -> VoxelTest.addRenderHook(() -> tonemapShader.upload("exposure", (float)n)));
+		tonemapShader.upload("exposure", rExposure.getAsFloat());
 		
-		tonemapShader = ForwardFramebuffer.createFbShader("tonemap");
-		
-		postProcessor = new PostProcessor(console, ldrFramebuffer, width, height);
+		postProcessor = new PostProcessor(ldrFramebuffer, width, height);
 		
 		finalShader = ForwardFramebuffer.createFbShader("final");
+		
+		rGamma = cvars.getCvarF64C("r_gamma", 2.2, Cvar.Flags.CONFIG, v -> Math.max(v, 0.0), (n, o) -> VoxelTest.addRenderHook(() -> finalShader.upload("gamma", (float)n)));
+		finalShader.upload("gamma", rGamma.getAsFloat());
 		
 		solidShader = ShaderProgram.builder().vertex("block").fragment("solid_defer", "chunk_frag_uniforms").create();
 		translucentShader = ShaderProgram.builder().vertex("block").fragment("translucent", "chunk_frag_uniforms").create();
 		
-		rGamma = cvars.getCvarF64C("r_gamma", 2.2, Cvar.Flags.CONFIG, v -> Math.max(v, 0.0), (n, o) -> VoxelTest.addRenderHook(() -> finalShader.upload("gamma", (float)n)));
-		finalShader.upload("gamma", (float)rGamma.get());
+		//depthShader = ShaderProgram.builder().vertex("depth").create();
+		depthShader = ShaderProgram.builder().vertex("depth_cutout").fragment("depth_cutout", "chunk_frag_uniforms").create();
+		
+		sunAmbientShader = GBuffer.createShader("lighting/sun_ambient");
+		
+		sun = new Sunlight();
+		
+		rAmbientStrength = cvars.getCvarF64C("r_ambient_strength", 0.3, Cvar.Flags.CHEAT, v -> MathUtil.clamp(v, 0.0, 1.0), (n, o) -> VoxelTest.addRenderHook(() -> sunAmbientShader.upload("ambientStrength", (float)n)));
+		sunAmbientShader.upload("ambientStrength", rAmbientStrength.getAsFloat());
+		
+		rSunIntensity = cvars.getCvarF64C("r_sun_intensity", 6.0, Cvar.Flags.CHEAT, v -> MathUtil.clamp(v, 0.0, 1.0), (n, o) -> VoxelTest.addRenderHook(() -> sunAmbientShader.upload("sunIntensity", (float)n)));
+		sunAmbientShader.upload("sunIntensity", rSunIntensity.getAsFloat());
+		
+		directionalShader = GBuffer.createShader("lighting/directional");
+		pointShader = GBuffer.createShader("lighting/point");
+		
+		rSsao = cvars.getCvarBoolC("r_ssao", true, Cvar.Flags.CONFIG, (n, o) -> VoxelTest.addRenderHook(() -> tonemapShader.upload("ssao", n)));
+		tonemapShader.upload("ssao", rSsao.getAsBool());
+		
+		sunAmbientShader.upload("shadowmapSampler", sun.getShadowmap().getBindlessHandle());
+		
+		AmbientOcclusion.init();
 		
 		// TODO AMD/intel alternatives
 		// do intel gpus even support 4.5?
 		// are debug features even useful to port?
-		if(caps.GL_NVX_gpu_memory_info) console.addCommand("r_vram", (c, a) -> VoxelTest.addRenderHook(() ->
+		if(caps.GL_NVX_gpu_memory_info) VoxelTest.CONSOLE.addCommand("r_vram", (c, a) -> VoxelTest.addRenderHook(() ->
 		{
 			int total = glGetInteger(NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX) / 1024;
 			int available = glGetInteger(NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_TOTAL_AVAILABLE_MEMORY_NVX) / 1024;
@@ -157,7 +204,17 @@ public class Renderer
 		}), 0);
 	}
 	
-	private void setupOpenGl()
+	public static void init(Window window)
+	{
+		resize(window.getWidth(), window.getHeight());
+		window.setResizeCallback(Renderer::resize);
+		
+		solidGBuffer.uploadTextureHandles(sunAmbientShader);
+		solidGBuffer.uploadTextureHandles(directionalShader);
+		solidGBuffer.uploadTextureHandles(pointShader);
+	}
+	
+	private static void setupOpenGl()
 	{
 		final String[] types = { "ERROR", "DEPRECATED_BEHAVIOR", "UNDEFINED_BEHAVIOR", "PORTABILITY", "PERFORMANCE", "OTHER", "MARKER" };
 		final String[] severities = { "HIGH", "MEDIUM", "LOW" };
@@ -173,67 +230,67 @@ public class Renderer
 		
 		glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
 		
+		glClearColor(0.0F, 0.0F, 0.0F, 0.0F);
 		glClearDepth(0.0);
-		glDepthFunc(GL_GREATER);
+		
+		glDepthMask(false);
 		
 		glCullFace(GL_BACK);
-		
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glEnable(GL_BLEND);
 	}
 	
-	private void dirtyPerspective()
+	private static void dirtyPerspective()
 	{
-		synchronized(perspective)
-		{
-			updatePerspective = true;
-		}
+		updatePerspective.setRelease(true);
 	}
 	
-	public void beginFrame(Camera camera)
+	public static void beginFrame(DebugCamera camera)
 	{
 		currentCamera = camera;
 		
-		if(updatePerspective)
-		{
-			synchronized(perspective)
-			{
-				// swap near and far for reversed depth
-				if(updatePerspective)
-					perspective.setPerspective((float)Math.toRadians(fov), customAspect ? aspectHor / aspectVer : (float)width / (float)height, Float.POSITIVE_INFINITY, 0.01F, true);
-			}
-		}
+		boolean up = updatePerspective.compareAndExchangeAcquire(true, false);
+		
+		if(up) // swap near and far for reversed depth
+			perspective.setPerspective((float)Math.toRadians(rFov.get()), rCustomAspect.getAsBool() ? (float)(rAspectHor.get() / rAspectVer.get()) : (float)width / (float)height, Float.POSITIVE_INFINITY, 0.01F, true);
 		
 		synchronized(camera)
 		{
-			if(updatePerspective || camera != previousCamera || camera.requiresViewUpdate())
+			if(up || camera != previousCamera || camera.requiresViewUpdate())
 			{
-				perspective.mul(camera.getView(), pv);
+				Matrix4f view = camera.getView();
+				
+				perspective.mul(view, pv);
 				cullingFrustum.set(pv, false);
 				
 				solidShader.upload("pv", pv);
+				solidShader.upload("view", view);
+				
 				translucentShader.upload("pv", pv);
+				translucentShader.upload("view", view);
+				
+				AmbientOcclusion.uploadMatrices(perspective, view);
 			}
 		}
-		
-		updatePerspective = false;
 		
 		camera.getInterpPosition(cameraPosition);
 		
 		solidObjects.clear();
 		translucentObjects.clear();
+		
+		allSolidObjects.clear();
 	}
 	
-	public void renderSolid(Renderable renderable)
+	public static void renderSolid(Renderable renderable)
 	{
 		if(renderable.shouldRender(cullingFrustum))
 		{
 			renderable.setCameraPosition(cameraPosition);
 			solidObjects.add(renderable);
+			allSolidObjects.add(renderable);
 		}
+		else if(renderable.shouldRender(null)) allSolidObjects.add(renderable);
 	}
 	
-	public void renderTranslucent(Renderable renderable)
+	public static void renderTranslucent(Renderable renderable)
 	{
 		if(renderable.shouldRender(cullingFrustum))
 		{
@@ -242,24 +299,86 @@ public class Renderer
 		}
 	}
 	
-	public void completeFrame()
+	public static void completeFrame(double delta)
 	{
-		sunElevation += 0.01;
+		//sunElevation += 3.0 * delta;
+		sunElevation += 0.0042 * delta;
 		updateSunAngle();
+		
+		glDepthMask(true);
+		
+		if(!allSolidObjects.isEmpty()) generateShadowmaps();
+		
+		solidGBuffer.bind();
 		
 		if(!solidObjects.isEmpty())
 		{
-			solidGBuffer.bind();
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			
 			renderSolids();
 		}
+		else glClear(GL_DEPTH_BUFFER_BIT);
 		
-		hdrFramebuffer.bind();
-		glClear(GL_COLOR_BUFFER_BIT);
+		glDepthMask(false);
 		
-		if(!solidObjects.isEmpty()) solidGBuffer.draw();
-		if(!translucentObjects.isEmpty()) renderTranslucents();
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		
+		// TODO light clustering
+		
+		if(!solidObjects.isEmpty())
+		{
+			AmbientOcclusion.generate();
+			
+			hdrFramebuffer.bind();
+			glClear(GL_COLOR_BUFFER_BIT);
+			
+			sunAmbientShader.upload("lightPv", sun.getLightSpaceTransform());
+			
+			solidGBuffer.draw(sunAmbientShader);
+			
+			glBlendFunc(GL_ONE, GL_ONE);
+			
+			if(!directionalLights.isEmpty())
+			{
+				for(DirectionalLight light : directionalLights)
+				{
+					directionalShader.upload("lightData.direction", light.getDirection());
+					directionalShader.upload("lightData.color", light.getColor());
+					directionalShader.upload("lightData.intensity", light.getIntensity());
+					
+					solidGBuffer.draw(directionalShader);
+				}
+			}
+			
+			if(!pointLights.isEmpty())
+			{
+				for(PointLight light : pointLights)
+				{
+					pointShader.upload("lightData.position", light.getPosition());
+					pointShader.upload("lightData.color", light.getColor());
+					pointShader.upload("lightData.attenuation", light.getAttenuationData());
+					
+					solidGBuffer.draw(pointShader);
+				}
+			}
+		}
+		else
+		{
+			hdrFramebuffer.bind();
+			glClear(GL_COLOR_BUFFER_BIT);
+		}
+		
+		renderSky();
+		
+		if(!translucentObjects.isEmpty())
+		{
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			renderTranslucents();
+		}
+		
+		glDisable(GL_BLEND);
+		
+		generateLuminance();
 		
 		ldrFramebuffer.bind();
 		hdrFramebuffer.draw(tonemapShader, null);
@@ -273,56 +392,113 @@ public class Renderer
 		currentCamera = null;
 	}
 	
-	private void renderSolids()
+	private static void generateShadowmaps()
 	{
+		glViewport(0, 0, shadowmapSize, shadowmapSize);
 		glEnable(GL_DEPTH_TEST);
-		glEnable(GL_CULL_FACE);
 		
-		solidShader.bind();
+		glCullFace(GL_FRONT);
 		
-		BlockTextures.getArray().bind(BlockTextures.ARRAY_TEXTURE_UNIT);
+		depthShader.bind();
 		
-		solidObjects.forEach(Renderable::render);
+		sun.generateShadowmap(allSolidObjects, depthShader);
 		
-		glDisable(GL_CULL_FACE);
+		glCullFace(GL_BACK);
+		
 		glDisable(GL_DEPTH_TEST);
+		glViewport(0, 0, width, height);
 	}
 	
-	private void renderTranslucents()
+	private static void renderSky()
+	{
+		glDisable(GL_BLEND);
+		
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_GEQUAL);
+		
+		skyShader.bind();
+		ForwardFramebuffer.drawFullscreenQuad();
+		
+		glDepthFunc(GL_GREATER);
+		glDisable(GL_DEPTH_TEST);
+		
+		glEnable(GL_BLEND);
+	}
+	
+	private static void renderSolids()
+	{
+		glEnable(GL_CULL_FACE);
+		glEnable(GL_DEPTH_TEST);
+		
+		solidShader.bind();
+		solidObjects.forEach(r -> r.renderFull(solidShader));
+		
+		glDisable(GL_DEPTH_TEST);
+		glDisable(GL_CULL_FACE);
+	}
+	
+	private static void renderTranslucents()
 	{
 		glEnable(GL_CULL_FACE);
 		glEnable(GL_DEPTH_TEST);
 		
 		translucentShader.bind();
+		translucentObjects.forEach(r -> r.renderFull(translucentShader));
 		
-		BlockTextures.getArray().bind(BlockTextures.ARRAY_TEXTURE_UNIT);
-		
-		translucentObjects.forEach(Renderable::render);
-		
-		glDisable(GL_CULL_FACE);
 		glDisable(GL_DEPTH_TEST);
+		glDisable(GL_CULL_FACE);
 	}
 	
-	public void resize(int width, int height)
+	private static void generateLuminance()
 	{
-		if(width != this.width || height != this.height)
+		hdrFramebuffer.blitColorTo(quarterFramebuffer, true);
+		
+		quarterFramebuffer.getColorTexture().bind(0);
+		depthBuffer.getTexture().bind(1);
+		
+		luminanceData.bind(0);
+		
+		lumHistShader.bind();
+		glDispatchCompute(quarterFramebuffer.height(), 1, 1);
+		
+		glBindImageTexture(0, finalLuminance.handle(), 0, false, 0, GL_READ_WRITE, GL_R32F);
+		
+		lumCalcShader.bind();
+		glDispatchCompute(1, 1, 1);
+	}
+	
+	public static void resize(int width, int height)
+	{
+		if(width != Renderer.width || height != Renderer.height)
 		{
-			if(depthTexture != null) depthTexture.destroy();
-			depthTexture = createDepthTexture(width, height);
+			if(depthBuffer != null) depthBuffer.destroy();
+			depthBuffer = new DepthBuffer(width, height, false);
 			
 			if(solidGBuffer != null) solidGBuffer.destroy();
-			solidGBuffer = new GBuffer(depthTexture, width, height);
+			solidGBuffer = new GBuffer(depthBuffer, width, height);
 			
 			if(hdrFramebuffer != null) hdrFramebuffer.destroy();
-			hdrFramebuffer = new ForwardFramebuffer(depthTexture, width, height, true);
+			hdrFramebuffer = new ForwardFramebuffer(depthBuffer, width, height, true);
+			
+			// it's not important that the size is a multiple of 4, this isn't displayed anywhere
+			if(quarterFramebuffer != null) quarterFramebuffer.destroy();
+			quarterFramebuffer = new ForwardFramebuffer(null, width / 4, height / 4, true);
+			
+			lumHistShader.upload("colorWidth", quarterFramebuffer.width());
+			lumCalcShader.uploadU("downscaledSize", quarterFramebuffer.width(), quarterFramebuffer.height());
 			
 			if(ldrFramebuffer != null) ldrFramebuffer.destroy();
 			ldrFramebuffer = new ForwardFramebuffer(null, width, height, false);
 			
-			glViewport(0, 0, width, height);
+			AmbientOcclusion.resize(solidGBuffer);
 			
-			this.width = width;
-			this.height = height;
+			tonemapShader.upload("size", 1.0F / width, 1.0F / height);
+			tonemapShader.upload("aoSampler", AmbientOcclusion.getGeneratedTexture());
+			
+			//glViewport(0, 0, width, height);
+			
+			Renderer.width = width;
+			Renderer.height = height;
 			
 			dirtyPerspective();
 			
@@ -332,48 +508,46 @@ public class Renderer
 		}
 	}
 	
-	private Texture createDepthTexture(int width, int height)
+	private static void updateSunAngle()
 	{
-		int texture = glCreateTextures(GL_TEXTURE_2D);
-		glTextureStorage2D(texture, 1, GL_DEPTH_COMPONENT32F, width, height);
+		sun.setAzEl(Math.toRadians(sunAzimuth), Math.toRadians(sunElevation));
 		
-		return Texture.wrap(width, height, texture);
+		sunAmbientShader.upload("sunDir", sun.getDirection());
+		//translucentShader.upload("sunDir", sun.getDirection());
 	}
 	
-	private void updateSunAngle()
-	{
-		double az = Math.toRadians(sunAzimuth);
-		double el = Math.toRadians(sunElevation);
-		
-		double sinAz = Math.sin(az);
-		double cosAz = Math.cos(az);
-		
-		double sinEl = Math.sin(el);
-		double cosEl = Math.cos(el);
-		
-		sunDir.set(sinAz * cosEl, sinEl, -cosAz * cosEl).normalize();
-		
-		GBuffer.getDefaultShader().upload("sunDir", sunDir);
-		//translucentShader.upload("sunDir", sunDir);
-	}
-	
-	public Camera getCurrentCamera()
+	public static DebugCamera getCurrentCamera()
 	{
 		return currentCamera;
 	}
 	
-	public PostProcessor getPostProcessor()
+	public static PostProcessor getPostProcessor()
 	{
 		return postProcessor;
 	}
 	
-	public ShaderProgram getSolidShader()
+	public static ShaderProgram getSolidShader()
 	{
 		return solidShader;
 	}
 	
-	public ShaderProgram getTranslucentShader()
+	public static ShaderProgram getTranslucentShader()
 	{
 		return translucentShader;
+	}
+	
+	public static ShaderProgram getTonemapShader()
+	{
+		return tonemapShader;
+	}
+	
+	public static ShaderProgram getDepthShader()
+	{
+		return depthShader;
+	}
+	
+	public static int getShadowmapSize()
+	{
+		return shadowmapSize;
 	}
 }

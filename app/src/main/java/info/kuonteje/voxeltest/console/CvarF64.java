@@ -80,6 +80,11 @@ public final class CvarF64 extends Cvar
 		}
 	}
 	
+	public float getAsFloat()
+	{
+		return (float)get();
+	}
+	
 	@Override
 	SetResult setString(String value, boolean loading)
 	{

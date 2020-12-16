@@ -20,7 +20,10 @@ public abstract class Renderable
 	
 	public abstract Vector3dc getCenter();
 	
-	public abstract void render();
+	public abstract void renderGeometry(ShaderProgram shader);
+	public abstract void renderShadow(ShaderProgram shader);
+	public abstract void renderFull(ShaderProgram shader);
+	
 	public abstract boolean shouldRender(FrustumIntersection frustum);
 	
 	public void setCameraPosition(Vector3dc position)

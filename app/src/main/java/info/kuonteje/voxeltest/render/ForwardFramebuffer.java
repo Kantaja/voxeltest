@@ -5,24 +5,15 @@ import static org.lwjgl.opengl.GL20C.*;
 import static org.lwjgl.opengl.GL30C.*;
 import static org.lwjgl.opengl.GL45C.*;
 
-import java.util.Comparator;
-import java.util.Set;
-
 import info.kuonteje.voxeltest.VoxelTest;
-import it.unimi.dsi.fastutil.objects.ObjectAVLTreeSet;
+import info.kuonteje.voxeltest.util.IDestroyable;
 
-public class ForwardFramebuffer
+public class ForwardFramebuffer implements IDestroyable
 {
-	// These are also texture units
-	private static final int COLOR_INDEX = 0;
-	private static final int DEPTH_INDEX = 1;
-	
 	public static final int vertexShaderObject;
 	public static final ShaderProgram identityShader;
 	
 	private static final int vao;
-	
-	private static final Set<ShaderProgram> fbShaders = new ObjectAVLTreeSet<>(Comparator.comparingInt(ShaderProgram::handle));
 	
 	static
 	{
@@ -33,7 +24,6 @@ public class ForwardFramebuffer
 		
 		VoxelTest.addShutdownHook(() ->
 		{
-			fbShaders.forEach(ShaderProgram::destroy);
 			glDeleteShader(vertexShaderObject);
 			glDeleteVertexArrays(vao);
 		});
@@ -41,9 +31,7 @@ public class ForwardFramebuffer
 	
 	public static ShaderProgram createFbShader(ShaderProgram.Builder builder)
 	{
-		ShaderProgram shader = builder.vertex(vertexShaderObject).create();
-		fbShaders.add(shader);
-		return shader;
+		return builder.vertex(vertexShaderObject).create();
 	}
 	
 	public static ShaderProgram createFbShader(String name)
@@ -51,48 +39,67 @@ public class ForwardFramebuffer
 		return createFbShader(ShaderProgram.builder().fragment("post/" + name, "post/all"));
 	}
 	
-	public static int getVao()
+	public static void drawFullscreenQuad()
 	{
-		return vao;
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 	}
 	
 	private final int framebuffer;
-	private final Texture color, depth;
 	
-	public ForwardFramebuffer(Texture depthTexture, int width, int height, boolean fp)
+	private final TextureHandle<SingleTexture> color;
+	private final SingleTexture depth;
+	
+	public ForwardFramebuffer(DepthBuffer depthBuffer, int width, int height, boolean fp)
 	{
+		VoxelTest.addDestroyable(this);
+		
 		framebuffer = glCreateFramebuffers();
 		
-		int colorBuffer = glCreateTextures(GL_TEXTURE_2D);
-		glTextureStorage2D(colorBuffer, 1, fp ? GL_RGBA16F : GL_RGBA16, width, height);
-		glNamedFramebufferTexture(framebuffer, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
+		SingleTexture color = SingleTexture.alloc2D(width, height, fp ? GL_RGBA16F : GL_RGBA16, 1);
+		glNamedFramebufferTexture(framebuffer, GL_COLOR_ATTACHMENT0, color.handle(), 0);
+		this.color = color.getBindlessHandle();
 		
-		this.color = Texture.wrap(width, height, colorBuffer);
-		
-		if(depthTexture != null)
+		if(depthBuffer != null)
 		{
-			glNamedFramebufferTexture(framebuffer, GL_DEPTH_ATTACHMENT, depthTexture.handle(), 0);
-			depth = depthTexture;
+			depth = depthBuffer.getTexture();
+			glNamedFramebufferTexture(framebuffer, depthBuffer.hasStencil() ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT, depth.handle(), 0);
+			
+			depth.getBindlessHandle();
 		}
 		else depth = null;
 	}
 	
-	public Texture getDepthTexture()
+	public SingleTexture getColorTexture()
+	{
+		return color.texture();
+	}
+	
+	public SingleTexture getDepthTexture()
 	{
 		return depth;
 	}
 	
-	public void draw(ShaderProgram shader, Texture depthTexture)
+	public int width()
 	{
-		if(depthTexture == null) depthTexture = depth;
+		return color.texture().width();
+	}
+	
+	public int height()
+	{
+		return color.texture().height();
+	}
+	
+	public void draw(ShaderProgram shader, SingleTexture depthTexture)
+	{
+		if(depthTexture == null) depthTexture = this.depth;
 		
 		shader.bind();
 		
-		color.bind(COLOR_INDEX);
-		if(depthTexture != null) depthTexture.bind(DEPTH_INDEX);
+		shader.upload("colorSampler", color);
+		if(depthTexture != null) shader.upload("depthSampler", depthTexture.getBindlessHandle());
 		
-		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		drawFullscreenQuad();
 	}
 	
 	public void draw()
@@ -110,29 +117,17 @@ public class ForwardFramebuffer
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
 	
-	public void bindAsRead()
+	public void blitColorTo(ForwardFramebuffer other, boolean linear)
 	{
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+		glBlitNamedFramebuffer(framebuffer, other.framebuffer, 0, 0, width(), height(), 0, 0, other.width(), other.height(), GL_COLOR_BUFFER_BIT, linear ? GL_LINEAR : GL_NEAREST);
 	}
 	
-	public void unbindAsRead()
-	{
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-	}
-	
-	public void bindAsDraw()
-	{
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
-	}
-	
-	public void unbindAsDraw()
-	{
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	}
-	
+	@Override
 	public void destroy()
 	{
 		glDeleteFramebuffers(framebuffer);
-		color.destroy();
+		color.texture().destroy();
+		
+		VoxelTest.removeDestroyable(this);
 	}
 }

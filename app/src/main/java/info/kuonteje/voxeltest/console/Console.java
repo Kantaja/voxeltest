@@ -33,9 +33,9 @@ public class Console
 	
 	private final CvarRegistry cvars = new CvarRegistry(this);
 	
-	private final CvarI64 svCheats = cvars.getCvarI64C("sv_cheats", 0, Cvar.Flags.SYNC, CvarI64.BOOL_TRANSFORMER, (n, o) ->
+	private final CvarI64 svCheats = cvars.getCvarBoolC("sv_cheats", false, Cvar.Flags.SYNC, (n, o) ->
 	{
-		if(n != o && n == 0L) cvars.resetCheats();
+		if(n != o && !n) cvars.resetCheats();
 	});
 	
 	private final Object2ObjectMap<String, Command> commands = new Object2ObjectOpenHashMap<>();

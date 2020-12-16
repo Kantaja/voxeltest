@@ -12,9 +12,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import info.kuonteje.voxeltest.util.MiscUtil;
+import info.kuonteje.voxeltest.util.functional.BooleanBiConsumer;
 import info.kuonteje.voxeltest.util.functional.DoubleBiConsumer;
 import info.kuonteje.voxeltest.util.functional.LongBiConsumer;
 import info.kuonteje.voxeltest.util.functional.ToBoolBiFunction;
+import info.kuonteje.voxeltest.util.functional.ToBoolBooleanBiFunction;
 import info.kuonteje.voxeltest.util.functional.ToBoolDoubleBiFunction;
 import info.kuonteje.voxeltest.util.functional.ToBoolLongBiFunction;
 import it.unimi.dsi.fastutil.doubles.Double2DoubleFunction;
@@ -274,6 +276,35 @@ public class CvarRegistry
 	public CvarString getCvarString(String name, String initialValue, int flags, Function<String, String> transformer)
 	{
 		return getCvarStringC(name, initialValue, flags, transformer, (BiConsumer<String, String>)null, true);
+	}
+	
+	public CvarI64 getCvarBool(String name, boolean initialValue, int flags, ToBoolBooleanBiFunction callback, boolean createIfMissing)
+	{
+		return getCvarI64(name, initialValue ? 1L : 0L, flags, CvarI64.BOOL_TRANSFORMER, callback == null ? null : (n, o) -> callback.apply(n != 0L, o != 0L), createIfMissing);
+	}
+	
+	public CvarI64 getCvarBool(String name, boolean initialValue, int flags, ToBoolBooleanBiFunction callback)
+	{
+		return getCvarBool(name, initialValue, flags, callback, true);
+	}
+	
+	public CvarI64 getCvarBoolC(String name, boolean initialValue, int flags, BooleanBiConsumer callback, boolean createIfMissing)
+	{
+		return getCvarI64(name, initialValue ? 1L : 0L, flags, CvarI64.BOOL_TRANSFORMER, callback == null ? null : (n, o) ->
+		{
+			callback.accept(n != 0L, o != 0L);
+			return true;
+		}, createIfMissing);
+	}
+	
+	public CvarI64 getCvarBoolC(String name, boolean initialValue, int flags, BooleanBiConsumer callback)
+	{
+		return getCvarBoolC(name, initialValue, flags, callback, true);
+	}
+	
+	public CvarI64 getCvarBool(String name, boolean initialValue, int flags)
+	{
+		return getCvarBool(name, initialValue, flags, null, true);
 	}
 	
 	public Cvar getCvar(String name)

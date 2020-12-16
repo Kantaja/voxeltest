@@ -37,7 +37,7 @@ public class World implements Ticks.ITickHandler
 			int x = Integer.parseInt(a.get(1));
 			int y = Integer.parseInt(a.get(2));
 			int z = Integer.parseInt(a.get(3));
-			System.out.println("(" + x + ", " + y + ", " + z + ") -> " + getChunkStatus(new ChunkPosition(x, y, z)).toString());
+			System.out.println("(" + x + ", " + y + ", " + z + ") -> " + getChunkStatus(x, y, z).toString());
 		}, 0);
 		
 		VoxelTest.CONSOLE.addCommand("chunktime", (c, a) ->
@@ -100,7 +100,9 @@ public class World implements Ticks.ITickHandler
 			int totalChunks = timer.totalChunks();
 			
 			System.out.println("Generating " + totalChunks + " chunks took " + (Math.round(totalTime * 100000.0) / 100.0) +
-					" ms, average " + (Math.round((totalTime / totalChunks) * 100000.0) / 100.0) + " ms each, " + (Math.round((totalChunks / totalTime) * 100.0) / 100.0) + " chunks/sec");
+					" ms, average " + (Math.round((totalTime / totalChunks) * 100000.0) / 100.0) + " ms each, " +
+					(Math.round((totalChunks / totalTime) * 100.0) / 100.0) + " chunks/sec/thread (" +
+					(Math.round(((totalChunks * Runtime.getRuntime().availableProcessors()) / totalTime) * 100.0) / 100.0) + " chunks/sec)");
 		}
 	}
 	
@@ -165,11 +167,11 @@ public class World implements Ticks.ITickHandler
 		return chunk instanceof Chunk c ? c : emptyChunk;
 	}
 	
-	public ChunkStatus getChunkStatus(ChunkPosition pos)
+	public ChunkStatus getChunkStatus(int x, int y, int z)
 	{
 		synchronized(chunks)
 		{
-			IChunk chunk = chunks.get(pos.key());
+			IChunk chunk = chunks.get(ChunkPosition.key(x, y, z));
 			
 			if(chunk == null) return ChunkStatus.NOT_LOADED;
 			else if(chunk instanceof PregenChunk) return ChunkStatus.PREGEN;
@@ -214,12 +216,12 @@ public class World implements Ticks.ITickHandler
 		getChunkOrPregen(x >> 5, y >> 5, z >> 5).setBlock(x & 0x1F, y & 0x1F, z & 0x1F, block);
 	}
 	
-	public void render(Renderer renderer)
+	public void render()
 	{
 		forEachLoadedChunk(c ->
 		{
-			renderer.renderSolid(c.solid());
-			renderer.renderTranslucent(c.translucent());
+			Renderer.renderSolid(c.solid());
+			Renderer.renderTranslucent(c.translucent());
 		});
 	}
 	

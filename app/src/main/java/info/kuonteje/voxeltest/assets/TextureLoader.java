@@ -1,5 +1,6 @@
 package info.kuonteje.voxeltest.assets;
 
+import static org.lwjgl.opengl.EXTTextureFilterAnisotropic.*;
 import static org.lwjgl.opengl.GL11C.*;
 import static org.lwjgl.opengl.GL12C.*;
 import static org.lwjgl.opengl.GL21C.*;
@@ -20,27 +21,17 @@ import info.kuonteje.voxeltest.console.Cvar;
 import info.kuonteje.voxeltest.console.CvarI64;
 import info.kuonteje.voxeltest.data.objects.BlockTextures;
 import info.kuonteje.voxeltest.render.ITextureProvider;
-import info.kuonteje.voxeltest.render.Texture;
+import info.kuonteje.voxeltest.render.SingleTexture;
 import info.kuonteje.voxeltest.util.MathUtil;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 public class TextureLoader
 {
-	public static final CvarI64 rMipmap = VoxelTest.CONSOLE.cvars().getCvarI64("r_mipmap", 1, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, CvarI64.BOOL_TRANSFORMER);
-	public static final CvarI64 rForceMipmap = VoxelTest.CONSOLE.cvars().getCvarI64("r_force_mipmap", 0, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, CvarI64.BOOL_TRANSFORMER);
+	public static final CvarI64 rMipmap = VoxelTest.CONSOLE.cvars().getCvarBool("r_mipmap", true, Cvar.Flags.CONFIG | Cvar.Flags.LATCH);
 	
-	private static final Map<String, Texture> cache = Collections.synchronizedMap(new Object2ObjectOpenHashMap<>());
+	public static final CvarI64 rTextureAnisotropy = VoxelTest.CONSOLE.cvars().getCvarI64("r_texture_anisotropy", 1L, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, v -> MathUtil.clamp(Long.highestOneBit(v), 1L, 16L));
 	
-	static
-	{
-		VoxelTest.addShutdownHook(() ->
-		{
-			cache.forEach((i, t) ->
-			{
-				if(!t.isDestroyed()) t.destroy();
-			});
-		});
-	}
+	private static final Map<String, SingleTexture> cache = Collections.synchronizedMap(new Object2ObjectOpenHashMap<>());
 	
 	public static final ITextureProvider DEFAULT_PROVIDER = (domain, id) ->
 	{
@@ -77,8 +68,8 @@ public class TextureLoader
 	
 	public static final ITextureProvider MISSING_PROVIDER = (domain, id) ->
 	{
-		int blockTextureSize = BlockTextures.getBlockTextureSize();
-		int halfShift = (int)BlockTextures.rLog2BlockTextureSize.get() - 1;
+		int blockTextureSize = BlockTextures.rBlockTextureSize.getAsInt();
+		int halfShift = MathUtil.floorLog2(blockTextureSize) - 1;
 		
 		ByteBuffer buffer = MemoryUtil.memAlloc(blockTextureSize * blockTextureSize * 4);
 		
@@ -98,10 +89,10 @@ public class TextureLoader
 		return new ITextureProvider.TextureData(blockTextureSize, blockTextureSize, buffer.flip());
 	};
 	
-	public static Texture loadTexture(String domain, String id, ITextureProvider provider, int mipmapBase)
+	public static SingleTexture loadTexture(String domain, String id, ITextureProvider provider, int mipmapBase)
 	{
 		String cacheId = domain + ":" + id;
-		Texture cached = cache.get(cacheId);
+		SingleTexture cached = cache.get(cacheId);
 		
 		if(cached != null)
 		{
@@ -109,7 +100,7 @@ public class TextureLoader
 			else return cached;
 		}
 		
-		provider = provider == null ? DEFAULT_PROVIDER : provider;
+		if(provider == null) provider = DEFAULT_PROVIDER;
 		
 		ITextureProvider.TextureData data;
 		
@@ -124,41 +115,40 @@ public class TextureLoader
 		
 		int width, height;
 		boolean mipmap;
-		int texture;
+		
+		SingleTexture texture;
 		
 		try
 		{
 			width = data.width();
 			height = data.height();
 			
-			mipmap = rForceMipmap.getAsBool() || (width == height && MathUtil.isPowerOf2(width) && rMipmap.getAsBool());
+			mipmap = rMipmap.getAsBool();
 			
-			texture = glCreateTextures(GL_TEXTURE_2D);
-			
-			glTextureStorage2D(texture, mipmap ? (1 + (int)Math.round(MathUtil.log2((double)width)) - mipmapBase) : 1, GL_SRGB8_ALPHA8, width, height);
-			glTextureSubImage2D(texture, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
+			texture = SingleTexture.alloc2D(width, height, GL_SRGB8_ALPHA8, mipmap ? SingleTexture.calculateMipLevels(width, height, 1) - mipmapBase : 1);
+			glTextureSubImage2D(texture.handle(), 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
 		}
 		finally
 		{
 			data.destroy();
 		}
 		
-		if(mipmap) glGenerateTextureMipmap(texture);
+		if(mipmap) texture.generateMipmaps();
 		
-		glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(texture.handle(), GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(texture.handle(), GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		
-		glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, mipmap ? GL_NEAREST_MIPMAP_LINEAR : GL_NEAREST);
-		glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(texture.handle(), GL_TEXTURE_MIN_FILTER, mipmap ? GL_NEAREST_MIPMAP_LINEAR : GL_NEAREST);
+		glTextureParameteri(texture.handle(), GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		
-		Texture result = Texture.wrap(width, height, texture);
+		glTextureParameterf(texture.handle(), GL_TEXTURE_MAX_ANISOTROPY_EXT, rTextureAnisotropy.get());
 		
-		cache.put(cacheId, result);
+		cache.put(cacheId, texture);
 		
-		return result;
+		return texture;
 	}
 	
-	public static Texture loadTexture(String id, ITextureProvider provider, int mipmapBase)
+	public static SingleTexture loadTexture(String id, ITextureProvider provider, int mipmapBase)
 	{
 		int colon = id.indexOf(':');
 		return colon != -1 ? loadTexture(id.substring(0, colon), id.substring(colon + 1, id.length()), provider, mipmapBase) : loadTexture(VoxelTest.DEFAULT_DOMAIN, id, provider, mipmapBase);

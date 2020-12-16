@@ -1,28 +1,14 @@
 package info.kuonteje.voxeltest.render.block;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL15.*;
-import static org.lwjgl.opengl.GL30.*;
-import static org.lwjgl.opengl.GL31.*;
-import static org.lwjgl.opengl.GL45.*;
-
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import org.joml.FrustumIntersection;
-import org.joml.Vector3d;
-import org.joml.Vector3dc;
-import org.lwjgl.system.MemoryUtil;
-
-import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.block.Block;
 import info.kuonteje.voxeltest.data.EntryId;
 import info.kuonteje.voxeltest.data.RegistryEntry;
 import info.kuonteje.voxeltest.render.BlockTexture;
 import info.kuonteje.voxeltest.render.ModelUtil;
-import info.kuonteje.voxeltest.render.Renderable;
-import info.kuonteje.voxeltest.render.Texture;
 
 public class CubeModel extends BlockModel
 {
@@ -186,121 +172,5 @@ public class CubeModel extends BlockModel
 		if(westVisible) ModelUtil.addTint(buf, tint);
 		if(topVisible) ModelUtil.addTint(buf, tint);
 		if(bottomVisible) ModelUtil.addTint(buf, tint);
-	}
-	
-	@Override
-	public Renderable createDebugRenderable()
-	{
-		int vao = glCreateVertexArrays();
-		int vertexVbo = glCreateBuffers();
-		
-		FloatBuffer vertexData = MemoryUtil.memAllocFloat(36 * 3);
-		
-		try
-		{
-			getVertices(vertexData, 0, 0, 0, true, true, true, true, true, true);
-			glNamedBufferStorage(vertexVbo, vertexData.flip(), 0);
-		}
-		finally
-		{
-			MemoryUtil.memFree(vertexData);
-		}
-		
-		int texCoordVbo = glCreateBuffers();
-		FloatBuffer texCoordData = MemoryUtil.memAllocFloat(36 * 2);
-		
-		try
-		{
-			getTextureCoords(texCoordData, true, true, true, true, true, true);
-			glNamedBufferStorage(texCoordVbo, texCoordData.flip(), 0);
-		}
-		finally
-		{
-			MemoryUtil.memFree(texCoordData);
-		}
-		
-		int texLayerVbo = glCreateBuffers();
-		Texture texLayerTbo = Texture.wrap(0, 0, glCreateTextures(GL_TEXTURE_BUFFER));
-		
-		glTextureBuffer(texLayerTbo.handle(), GL_R32UI, texLayerVbo);
-		
-		IntBuffer layerData = MemoryUtil.memAllocInt(6);
-		
-		try
-		{
-			getTextureLayers(layerData, true, true, true, true, true, true);
-			glNamedBufferStorage(texLayerVbo, layerData.flip(), 0);
-		}
-		finally
-		{
-			MemoryUtil.memFree(layerData);
-		}
-		
-		int tintVbo = glCreateBuffers();
-		Texture tintTbo = Texture.wrap(0, 0, glCreateTextures(GL_TEXTURE_BUFFER));
-		
-		glTextureBuffer(tintTbo.handle(), GL_RGBA8, tintVbo);
-		
-		ByteBuffer tintData = MemoryUtil.memAlloc(6);
-		
-		try
-		{
-			getTints(tintData, true, true, true, true, true, true);
-			glNamedBufferStorage(tintVbo, tintData.flip(), 0);
-		}
-		finally
-		{
-			MemoryUtil.memFree(tintData);
-		}
-		
-		bindVbo(vao, vertexVbo, 0, 3);
-		bindVbo(vao, texCoordVbo, 1, 2);
-		
-		VoxelTest.addShutdownHook(() ->
-		{
-			glDeleteVertexArrays(vao);
-			
-			texLayerTbo.destroy();
-			tintTbo.destroy();
-			
-			glDeleteBuffers(vertexVbo);
-			glDeleteBuffers(texCoordVbo);
-			glDeleteBuffers(texLayerVbo);
-		});
-		
-		return new Renderable()
-		{
-			private final Vector3d center = new Vector3d(0.5, 0.5, 0.5);
-			
-			@Override
-			public Vector3dc getCenter()
-			{
-				return center;
-			}
-			
-			@Override
-			public boolean shouldRender(FrustumIntersection frustum)
-			{
-				return frustum.testAab(0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F);
-			}
-			
-			@Override
-			public void render()
-			{
-				texLayerTbo.bind(0);
-				tintTbo.bind(1);
-				
-				glBindVertexArray(vao);
-				glDrawArrays(GL_TRIANGLES, 0, 36);
-			}
-		};
-	}
-	
-	private void bindVbo(int vao, int vbo, int index, int size)
-	{
-		glEnableVertexArrayAttrib(vao, index);
-		glVertexArrayAttribFormat(vao, index, size, GL_FLOAT, false, 0);
-		glVertexArrayVertexBuffer(vao, index, vbo, 0L, size * 4);
-		glVertexArrayAttribBinding(vao, index, index);
 	}
 }

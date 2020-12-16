@@ -7,20 +7,17 @@ import info.kuonteje.voxeltest.console.CvarI64;
 import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.Registry;
 import info.kuonteje.voxeltest.render.BlockTexture;
+import info.kuonteje.voxeltest.render.Renderer;
 import info.kuonteje.voxeltest.render.TextureArray;
-import info.kuonteje.voxeltest.util.MathUtil;
+import info.kuonteje.voxeltest.render.TextureHandle;
 
 public class BlockTextures
 {
-	public static final int ARRAY_TEXTURE_UNIT = 2;
-	
-	public static final CvarI64 rLog2BlockTextureSize;
-	private static int blockTextureSize;
+	public static final CvarI64 rBlockTextureSize;
 	
 	static
 	{
-		rLog2BlockTextureSize = VoxelTest.CONSOLE.cvars().getCvarI64C("r_log2_block_texture_size", 4L, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, null, (n, o) -> blockTextureSize = MathUtil.fastFloor(Math.pow(2, n)));
-		blockTextureSize = MathUtil.fastFloor(Math.pow(2, rLog2BlockTextureSize.get()));
+		rBlockTextureSize = VoxelTest.CONSOLE.cvars().getCvarI64("r_block_texture_size", 16L, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, v -> Long.highestOneBit(Math.max(0L, v)));
 	}
 	
 	public static final Registry<BlockTexture> REGISTRY = DefaultRegistries.BLOCK_TEXTURES;
@@ -44,6 +41,7 @@ public class BlockTextures
 	{
 		REGISTRY.addFreezeCallback(r ->
 		{
+			int blockTextureSize = rBlockTextureSize.getAsInt();
 			array = new TextureArray(blockTextureSize, blockTextureSize, r.size());
 			
 			array.addTexture(0, "missing", TextureLoader.MISSING_PROVIDER);
@@ -56,16 +54,17 @@ public class BlockTextures
 			}
 			
 			array.finalizeArray();
+			
+			TextureHandle<TextureArray> handle = array.getBindlessHandle();
+			
+			Renderer.getSolidShader().upload("texSamplers", handle);
+			Renderer.getTranslucentShader().upload("texSamplers", handle);
+			Renderer.getDepthShader().upload("texSamplers", handle);
 		});
 	}
 	
 	public static TextureArray getArray()
 	{
 		return array;
-	}
-	
-	public static int getBlockTextureSize()
-	{
-		return blockTextureSize;
 	}
 }

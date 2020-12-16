@@ -11,8 +11,6 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import info.kuonteje.voxeltest.VoxelTest;
-
 public class ChunkRenderer
 {
 	private static final int TEX_LAYER_TEXTURE_UNIT = 0;
@@ -32,12 +30,12 @@ public class ChunkRenderer
 	
 	private static final int resizeSpace = 512;
 	
-	private int bufferSizeTriangles = 1024;
+	private int bufferSizeTriangles = 4096;
 	
 	private final int vao, vertexVbo, texCoordVbo;
 	private final int texLayerVbo, tintVbo;
 	
-	private final Texture texLayerTbo, tintTbo;
+	private final SingleTexture texLayerTbo, tintTbo;
 	
 	private FloatBuffer vertexBuf, texCoordBuf;
 	private IntBuffer texLayerBuf;
@@ -58,8 +56,8 @@ public class ChunkRenderer
 		texLayerVbo = glCreateBuffers();
 		tintVbo = glCreateBuffers();
 		
-		texLayerTbo = Texture.wrap(0, 0, glCreateTextures(GL_TEXTURE_BUFFER));
-		tintTbo = Texture.wrap(0, 0, glCreateTextures(GL_TEXTURE_BUFFER));
+		texLayerTbo = SingleTexture.wrap(0, 0, 0, glCreateTextures(GL_TEXTURE_BUFFER));
+		tintTbo = SingleTexture.wrap(0, 0, 0, glCreateTextures(GL_TEXTURE_BUFFER));
 		
 		glTextureBuffer(texLayerTbo.handle(), GL_R32UI, texLayerVbo);
 		glTextureBuffer(tintTbo.handle(), GL_RGBA8, tintVbo);
@@ -77,10 +75,10 @@ public class ChunkRenderer
 	
 	private void reallocBuffers()
 	{
-		nglNamedBufferData(vertexVbo, bufferSizeTriangles * VERTICES_PER_TRIANGLE * VERTEX_FLOATS_PER_VERTEX * Float.BYTES, NULL, GL_STREAM_DRAW);
-		nglNamedBufferData(texCoordVbo, bufferSizeTriangles * TEX_COORDS_PER_TRIANGLE * TEX_COORD_FLOATS_PER_VERTEX * Float.BYTES, NULL, GL_STREAM_DRAW);
-		nglNamedBufferData(texLayerVbo, bufferSizeTriangles / TRIANGLES_PER_TEX_LAYER * Integer.BYTES * TEX_LAYER_INTS_PER_FACE, NULL, GL_STREAM_DRAW);
-		nglNamedBufferData(tintVbo, bufferSizeTriangles / TRIANGLES_PER_TINT * Byte.BYTES * TINT_BYTES_PER_FACE, NULL, GL_STREAM_DRAW);
+		glNamedBufferData(vertexVbo, bufferSizeTriangles * VERTICES_PER_TRIANGLE * VERTEX_FLOATS_PER_VERTEX * Float.BYTES, GL_STREAM_DRAW);
+		glNamedBufferData(texCoordVbo, bufferSizeTriangles * TEX_COORDS_PER_TRIANGLE * TEX_COORD_FLOATS_PER_VERTEX * Float.BYTES, GL_STREAM_DRAW);
+		glNamedBufferData(texLayerVbo, bufferSizeTriangles / TRIANGLES_PER_TEX_LAYER * Integer.BYTES * TEX_LAYER_INTS_PER_FACE, GL_STREAM_DRAW);
+		glNamedBufferData(tintVbo, bufferSizeTriangles / TRIANGLES_PER_TINT * Byte.BYTES * TINT_BYTES_PER_FACE, GL_STREAM_DRAW);
 	}
 	
 	private void bindVbo(int vao, int vbo, int index, int size)
@@ -168,24 +166,42 @@ public class ChunkRenderer
 		}
 	}
 	
-	public void renderSolid()
+	public void renderSolidGeometry(ShaderProgram shader)
+	{
+		if(solidTriangles > 0) drawSolid();
+	}
+	
+	public void renderSolidShadow(ShaderProgram shader)
 	{
 		if(solidTriangles > 0)
 		{
 			texLayerTbo.bind(TEX_LAYER_TEXTURE_UNIT);
-			tintTbo.bind(TINT_TEXTURE_UNIT);
-			
-			glBindVertexArray(vao);
-			glDrawArrays(GL_TRIANGLES, 0, solidTriangles * VERTICES_PER_TRIANGLE);
+			drawSolid();
 		}
 	}
 	
-	public void renderTranslucent()
+	public void renderSolidFull(ShaderProgram shader)
+	{
+		if(solidTriangles > 0)
+		{
+			// These can't be bindless, because creating a handle for a texture prevents it being reallocated
+			texLayerTbo.bind(TEX_LAYER_TEXTURE_UNIT);
+			tintTbo.bind(TINT_TEXTURE_UNIT);
+			
+			drawSolid();
+		}
+	}
+	
+	private void drawSolid()
+	{
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLES, 0, solidTriangles * VERTICES_PER_TRIANGLE);
+	}
+	
+	public void renderTranslucent(ShaderProgram shader)
 	{
 		if(translucentTriangles > 0)
 		{
-			ShaderProgram shader = VoxelTest.getRenderer().getTranslucentShader();
-			
 			texLayerTbo.bind(TEX_LAYER_TEXTURE_UNIT);
 			tintTbo.bind(TINT_TEXTURE_UNIT);
 			shader.upload("baseTriangleId", solidTriangles);

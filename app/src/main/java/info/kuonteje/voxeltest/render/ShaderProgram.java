@@ -1,5 +1,6 @@
 package info.kuonteje.voxeltest.render;
 
+import static org.lwjgl.opengl.ARBBindlessTexture.*;
 import static org.lwjgl.opengl.GL11C.*;
 import static org.lwjgl.opengl.GL20C.*;
 import static org.lwjgl.opengl.GL41C.*;
@@ -11,19 +12,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.joml.Matrix3f;
-import org.joml.Matrix4f;
-import org.joml.Vector2f;
-import org.joml.Vector2i;
-import org.joml.Vector3f;
-import org.joml.Vector3i;
-import org.joml.Vector4f;
-import org.joml.Vector4i;
+import org.joml.Matrix3fc;
+import org.joml.Matrix4fc;
+import org.joml.Vector2fc;
+import org.joml.Vector2ic;
+import org.joml.Vector3fc;
+import org.joml.Vector3ic;
+import org.joml.Vector4fc;
+import org.joml.Vector4ic;
 import org.lwjgl.system.MemoryStack;
 
+import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.assets.AssetLoader;
 import info.kuonteje.voxeltest.assets.AssetType;
 import info.kuonteje.voxeltest.util.Either;
+import info.kuonteje.voxeltest.util.IDestroyable;
 import info.kuonteje.voxeltest.util.Lazy;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -31,8 +34,10 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectAVLTreeSet;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 
-public class ShaderProgram
+public class ShaderProgram implements IDestroyable
 {
+	private static final String SHADER_PRE = "#version 450 core\n#extension GL_ARB_bindless_texture : enable\n";
+	
 	private static final Map<String, String> includes = new Object2ObjectOpenHashMap<>();
 	
 	private static int lastBound = 0;
@@ -41,8 +46,12 @@ public class ShaderProgram
 	
 	private final Lazy<Object2IntMap<String>> uniformCache = Lazy.of(Object2IntOpenHashMap::new);
 	
+	private boolean destroyed = false;
+	
 	private ShaderProgram(EnumMap<ShaderType, Either<String, Integer>> builderMap, EnumMap<ShaderType, List<String>> includeIds)
 	{
+		VoxelTest.addDestroyable(this);
+		
 		final Lazy<Set<Integer>> providedShaders = Lazy.of(ObjectAVLTreeSet::new);
 		final Set<Integer> shaders = new ObjectAVLTreeSet<>();
 		
@@ -108,6 +117,12 @@ public class ShaderProgram
 		if(handle >= 0) glProgramUniform1ui(program, handle, x);
 	}
 	
+	public void upload(String uniform, boolean x)
+	{
+		int handle = uniformHandle(uniform);
+		if(handle >= 0) glProgramUniform1i(program, handle, x ? 1 : 0);
+	}
+	
 	public void upload(String uniform, float x, float y)
 	{
 		int handle = uniformHandle(uniform);
@@ -162,52 +177,52 @@ public class ShaderProgram
 		if(handle >= 0) glProgramUniform4ui(program, handle, x, y, z, w);
 	}
 	
-	public void upload(String uniform, Vector2f vector)
+	public void upload(String uniform, Vector2fc vector)
 	{
-		upload(uniform, vector.x, vector.y);
+		upload(uniform, vector.x(), vector.y());
 	}
 	
-	public void upload(String uniform, Vector2i vector)
+	public void upload(String uniform, Vector2ic vector)
 	{
-		upload(uniform, vector.x, vector.y);
+		upload(uniform, vector.x(), vector.y());
 	}
 	
-	public void uploadU(String uniform, Vector2i vector)
+	public void uploadU(String uniform, Vector2ic vector)
 	{
-		uploadU(uniform, vector.x, vector.y);
+		uploadU(uniform, vector.x(), vector.y());
 	}
 	
-	public void upload(String uniform, Vector3f vector)
+	public void upload(String uniform, Vector3fc vector)
 	{
-		upload(uniform, vector.x, vector.y, vector.z);
+		upload(uniform, vector.x(), vector.y(), vector.z());
 	}
 	
-	public void upload(String uniform, Vector3i vector)
+	public void upload(String uniform, Vector3ic vector)
 	{
-		upload(uniform, vector.x, vector.y, vector.z);
+		upload(uniform, vector.x(), vector.y(), vector.z());
 	}
 	
-	public void uploadU(String uniform, Vector3i vector)
+	public void uploadU(String uniform, Vector3ic vector)
 	{
-		uploadU(uniform, vector.x, vector.y, vector.z);
+		uploadU(uniform, vector.x(), vector.y(), vector.z());
 	}
 	
-	public void upload(String uniform, Vector4f vector)
+	public void upload(String uniform, Vector4fc vector)
 	{
-		upload(uniform, vector.x, vector.y, vector.z, vector.w);
+		upload(uniform, vector.x(), vector.y(), vector.z(), vector.w());
 	}
 	
-	public void upload(String uniform, Vector4i vector)
+	public void upload(String uniform, Vector4ic vector)
 	{
-		upload(uniform, vector.x, vector.y, vector.z, vector.w);
+		upload(uniform, vector.x(), vector.y(), vector.z(), vector.w());
 	}
 	
-	public void uploadU(String uniform, Vector4i vector)
+	public void uploadU(String uniform, Vector4ic vector)
 	{
-		uploadU(uniform, vector.x, vector.y, vector.z, vector.w);
+		uploadU(uniform, vector.x(), vector.y(), vector.z(), vector.w());
 	}
 	
-	public void upload(String uniform, Matrix3f matrix)
+	public void upload(String uniform, Matrix3fc matrix)
 	{
 		int handle = uniformHandle(uniform);
 		
@@ -222,7 +237,7 @@ public class ShaderProgram
 		}
 	}
 	
-	public void upload(String uniform, Matrix4f matrix)
+	public void upload(String uniform, Matrix4fc matrix)
 	{
 		int handle = uniformHandle(uniform);
 		
@@ -235,6 +250,12 @@ public class ShaderProgram
 				glProgramUniformMatrix4fv(program, handle, false, matrixBuf);
 			}
 		}
+	}
+	
+	public void upload(String uniform, TextureHandle<?> texture)
+	{
+		int handle = uniformHandle(uniform);
+		if(handle >= 0) glProgramUniformHandleui64ARB(program, handle, texture.handle());
 	}
 	
 	public void bind()
@@ -256,9 +277,16 @@ public class ShaderProgram
 		}
 	}
 	
+	@Override
 	public void destroy()
 	{
-		glDeleteProgram(program);
+		if(!destroyed)
+		{
+			glDeleteProgram(program);
+			
+			destroyed = true;
+			VoxelTest.removeDestroyable(this);
+		}
 	}
 	
 	public static int loadShaderObject(String id, ShaderType type, List<String> includeIds)
@@ -269,13 +297,13 @@ public class ShaderProgram
 		
 		int shader = glCreateShader(type.getGlType());
 		
-		if(includeIds.isEmpty()) glShaderSource(shader, "#version 450 core\n", src);
+		if(includeIds.isEmpty()) glShaderSource(shader, SHADER_PRE, src);
 		else
 		{
 			StringBuilder sourceBuilder = new StringBuilder();
 			includeIds.stream().map(String::toLowerCase).map(ShaderProgram::getInclude).forEach(s -> sourceBuilder.append(s + "\n"));
 			
-			glShaderSource(shader, "#version 450 core\n", sourceBuilder.toString(), src);
+			glShaderSource(shader, SHADER_PRE, sourceBuilder.toString(), src);
 		}
 		
 		glCompileShader(shader);

@@ -14,9 +14,10 @@ import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.console.Cvar;
 import info.kuonteje.voxeltest.console.CvarF64;
 import info.kuonteje.voxeltest.console.CvarI64;
+import info.kuonteje.voxeltest.util.MathUtil;
 import it.unimi.dsi.fastutil.ints.Int2BooleanFunction;
 
-public class Camera implements Ticks.ITickHandler
+public class DebugCamera implements Ticks.ITickHandler
 {
 	private static final double RAD90 = Math.PI / 2.0;
 	
@@ -24,7 +25,7 @@ public class Camera implements Ticks.ITickHandler
 	private static CvarF64 walkMult = VoxelTest.CONSOLE.cvars().getCvarF64("walk_mult", 0.3, Cvar.Flags.CHEAT, null);
 	private static CvarF64 sprintMult = VoxelTest.CONSOLE.cvars().getCvarF64("sprint_mult", 3.0, Cvar.Flags.CHEAT, null);
 	
-	private static CvarI64 mInvertY = VoxelTest.CONSOLE.cvars().getCvarI64("m_invert_y", 0, Cvar.Flags.CONFIG, CvarI64.BOOL_TRANSFORMER);
+	private static CvarI64 mInvertY = VoxelTest.CONSOLE.cvars().getCvarBool("m_invert_y", false, Cvar.Flags.CONFIG);
 	
 	private static CvarF64 mYaw, mPitch, sensitivity;
 	private static double yaw, pitch;
@@ -69,7 +70,7 @@ public class Camera implements Ticks.ITickHandler
 	
 	private final Object transformLock = new Object();
 	
-	public Camera(Int2BooleanFunction keyFunc, Function<Vector2d, Vector2d> mouseFunc)
+	public DebugCamera(Int2BooleanFunction keyFunc, Function<Vector2d, Vector2d> mouseFunc)
 	{
 		this.keyFunc = keyFunc;
 		this.mouseFunc = mouseFunc;
@@ -98,15 +99,9 @@ public class Camera implements Ticks.ITickHandler
 				
 				prevMouse.set(mouse);
 				
-				double partialTick = VoxelTest.getPartialTick();
+				MathUtil.lerp(prevTickPosition, position, VoxelTest.getPartialTick(), interpPosition);
 				
-				double interpX = prevTickPosition.x + (position.x - prevTickPosition.x) * partialTick;
-				double interpY = prevTickPosition.y + (position.y - prevTickPosition.y) * partialTick;
-				double interpZ = prevTickPosition.z + (position.z - prevTickPosition.z) * partialTick;
-				
-				interpPosition.set(interpX, interpY, interpZ);
-				
-				view.identity().rotateX((float)(-rotation.x)).rotateY((float)(-rotation.y)).translate((float)(-interpX), (float)(-interpY), (float)(-interpZ));
+				view.identity().rotateX((float)(-rotation.x)).rotateY((float)(-rotation.y)).translate((float)(-interpPosition.x), (float)(-interpPosition.y), (float)(-interpPosition.z));
 				
 				requiresViewUpdate = true;
 				

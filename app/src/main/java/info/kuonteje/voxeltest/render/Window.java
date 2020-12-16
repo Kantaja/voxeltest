@@ -6,11 +6,11 @@ import static org.lwjgl.system.MemoryUtil.*;
 
 import java.nio.DoubleBuffer;
 import java.nio.IntBuffer;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.joml.Vector2d;
-import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.system.MemoryStack;
@@ -35,8 +35,8 @@ public class Window
 	
 	private IWindowResizeCallback resizeCallback = null;
 	
-	private CopyOnWriteArrayList<IKeyCallback> keyCallbacks = new CopyOnWriteArrayList<>();
-	private CopyOnWriteArrayList<IMouseButtonCallback> mouseButtonCallbacks = new CopyOnWriteArrayList<>();
+	private List<IKeyCallback> keyCallbacks = new CopyOnWriteArrayList<>();
+	private List<IMouseButtonCallback> mouseButtonCallbacks = new CopyOnWriteArrayList<>();
 	
 	private final Object mouseLock = new Object();
 	
@@ -73,13 +73,16 @@ public class Window
 		
 		if((window = glfwCreateWindow(width, height, title, NULL, NULL)) == 0) throw new RuntimeException("failed to create window");
 		
-		IntBuffer bwidth = BufferUtils.createIntBuffer(1);
-		IntBuffer bheight = BufferUtils.createIntBuffer(1);
-		
-		glfwGetWindowSize(window, bwidth, bheight);
-		
-		nwidth = bwidth.get(0);
-		nheight = bheight.get(0);
+		try(MemoryStack stack = MemoryStack.stackPush())
+		{
+			IntBuffer bwidth = stack.mallocInt(1);
+			IntBuffer bheight = stack.mallocInt(1);
+			
+			glfwGetWindowSize(window, bwidth, bheight);
+			
+			nwidth = bwidth.get(0);
+			nheight = bheight.get(0);
+		}
 		
 		glfwGetCursorPos(window, bufMouseX, bufMouseY);
 		

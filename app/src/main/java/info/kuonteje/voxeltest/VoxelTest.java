@@ -8,12 +8,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.Queue;
 import java.util.Scanner;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.joml.Vector3d;
 
@@ -22,11 +25,11 @@ import info.kuonteje.voxeltest.console.Cvar;
 import info.kuonteje.voxeltest.console.CvarI64;
 import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.RegistryManager;
-import info.kuonteje.voxeltest.render.Camera;
+import info.kuonteje.voxeltest.render.DebugCamera;
 import info.kuonteje.voxeltest.render.Renderer;
 import info.kuonteje.voxeltest.render.Window;
+import info.kuonteje.voxeltest.util.IDestroyable;
 import info.kuonteje.voxeltest.util.MathUtil;
-import info.kuonteje.voxeltest.world.ChunkPosition;
 import info.kuonteje.voxeltest.world.World;
 
 public class VoxelTest
@@ -39,7 +42,10 @@ public class VoxelTest
 	
 	public static final CvarI64 vsyncInterval = CONSOLE.cvars().getCvarI64C("vsync_interval", 1L, Cvar.Flags.CONFIG, v -> Math.max(v, 0L), (n, o) -> addRenderHook(() -> getWindow().setSwapInterval((int)n)));
 	
+	private static final AtomicBoolean shuttingDown = new AtomicBoolean(false);
 	private static final List<Runnable> shutdownHooks = Collections.synchronizedList(new ArrayList<>());
+	
+	private static final Deque<IDestroyable> destroyables = new ConcurrentLinkedDeque<>();
 	
 	private static final Queue<Runnable> renderHooks = new ConcurrentLinkedQueue<>();
 	private static long renderThreadId = -1;
@@ -47,8 +53,7 @@ public class VoxelTest
 	private static ExecutorService threadPool;
 	
 	private static Window window;
-	private static Renderer renderer;
-	private static Camera camera;
+	private static DebugCamera camera;
 	
 	private static World world;
 	
@@ -80,15 +85,15 @@ public class VoxelTest
 			threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 			
 			window = new Window("VoxelTest", 1366, 768);
-			renderer = new Renderer(CONSOLE, window);
+			Renderer.init(window);
 			
 			DefaultRegistries.init();
 			
 			RegistryManager.freezeAll();
 			
-			camera = new Camera(window::getKey, window::getMouse);
+			camera = new DebugCamera(window::getKey, window::getMouse);
 			
-			window.setSwapInterval((int)vsyncInterval.get());
+			window.setSwapInterval(vsyncInterval.getAsInt());
 			
 			Ticks.addTickHandler(world = new World());
 			addShutdownHook(world::destroy);
@@ -125,7 +130,7 @@ public class VoxelTest
 					
 					window.setTitle("VoxelTest (" + (Math.round(frames / accum * 100.0) / 100.0) + " fps, " + (Math.round(accum / frames * 100000.0) / 100.0) + " ms), camera position ("
 							+ MathUtil.fastFloor(pos.x) + ", " + MathUtil.fastFloor(pos.y) + ", " + MathUtil.fastFloor(pos.z) + "), in chunk ("
-							+ chunkX + ", " + chunkY + ", " + chunkZ + ") - " + world.getChunkStatus(new ChunkPosition(chunkX, chunkY, chunkZ)).toString());
+							+ chunkX + ", " + chunkY + ", " + chunkZ + ") - " + world.getChunkStatus(chunkX, chunkY, chunkZ).toString());
 					
 					frames = 0;
 					accum = 0.0;
@@ -135,13 +140,13 @@ public class VoxelTest
 				partialTick = ((frameStart - Ticks.lastTickTime()) - Ticks.getTickLength()) * Ticks.getTickrate();
 				
 				camera.frame(delta);
-				renderer.beginFrame(camera);
+				Renderer.beginFrame(camera);
 				
 				processRenderHooks();
 				
-				world.render(renderer);
+				world.render();
 				
-				renderer.completeFrame();
+				Renderer.completeFrame(delta);
 				
 				frames++;
 				window.update();
@@ -149,9 +154,14 @@ public class VoxelTest
 		}
 		finally
 		{
+			shuttingDown.setRelease(true);
+			
 			shutdownHooks.forEach(Runnable::run);
-			window.destroy();
+			destroyables.forEach(IDestroyable::destroy);
+			
+			if(window != null) window.destroy();
 			threadPool.shutdown();
+			
 			glfwTerminate();
 		}
 		
@@ -178,14 +188,24 @@ public class VoxelTest
 		return window;
 	}
 	
-	public static Renderer getRenderer()
+	public static boolean shuttingDown()
 	{
-		return renderer;
+		return shuttingDown.getAcquire();
 	}
 	
 	public static void addShutdownHook(Runnable hook)
 	{
 		shutdownHooks.add(hook);
+	}
+	
+	public static void addDestroyable(IDestroyable destroyable)
+	{
+		if(!shuttingDown()) destroyables.addFirst(destroyable);
+	}
+	
+	public static void removeDestroyable(IDestroyable destroyable)
+	{
+		if(!shuttingDown()) destroyables.remove(destroyable);
 	}
 	
 	public static void addRenderHook(Runnable hook, boolean forceSchedule)

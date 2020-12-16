@@ -79,6 +79,11 @@ public final class CvarI64 extends Cvar
 		}
 	}
 	
+	public int getAsInt()
+	{
+		return (int)get();
+	}
+	
 	public boolean getAsBool()
 	{
 		return get() != 0L;

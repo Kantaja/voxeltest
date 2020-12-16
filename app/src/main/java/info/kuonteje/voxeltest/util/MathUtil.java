@@ -1,10 +1,18 @@
 package info.kuonteje.voxeltest.util;
 
+import org.joml.Vector3d;
+import org.joml.Vector3f;
+
 public class MathUtil
 {
 	private static final double LOG2 = Math.log(2.0);
 	
 	public static double clamp(double v, double min, double max)
+	{
+		return v < min ? min : (v > max ? max : v);
+	}
+	
+	public static long clamp(long v, long min, long max)
 	{
 		return v < min ? min : (v > max ? max : v);
 	}
@@ -71,5 +79,15 @@ public class MathUtil
 	public static double lerp(double v0, double v1, double t)
 	{
 		return v0 + t * (v1 - v0);
+	}
+	
+	public static Vector3f lerp(Vector3f v0, Vector3f v1, float t, Vector3f dst)
+	{
+		return dst.set(lerp(v0.x, v1.x, t), lerp(v0.y, v1.y, t), lerp(v0.z, v1.z, t));
+	}
+	
+	public static Vector3d lerp(Vector3d v0, Vector3d v1, double t, Vector3d dst)
+	{
+		return dst.set(lerp(v0.x, v1.x, t), lerp(v0.y, v1.y, t), lerp(v0.z, v1.z, t));
 	}
 }

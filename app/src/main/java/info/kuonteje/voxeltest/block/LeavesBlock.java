@@ -15,11 +15,4 @@ public class LeavesBlock extends Block implements ICutoutBlock
 		super(id);
 	}
 	
-	/*
-	@Override
-	public boolean blocksAdjacentFaces(World world, int x, int y, int z)
-	{
-		return false;
-	}
-	 */
 }

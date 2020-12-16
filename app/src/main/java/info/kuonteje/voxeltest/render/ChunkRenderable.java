@@ -1,5 +1,6 @@
 package info.kuonteje.voxeltest.render;
 
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 import org.joml.FrustumIntersection;
@@ -12,7 +13,10 @@ public class ChunkRenderable extends Renderable
 	private final Chunk chunk;
 	private final boolean solid;
 	
-	private Runnable renderFunc = null;
+	private Consumer<ShaderProgram> renderGeomFunc = null;
+	private Consumer<ShaderProgram> renderShadowFunc = null;
+	private Consumer<ShaderProgram> renderFullFunc = null;
+	
 	private IntSupplier triangleCountFunc = null;
 	
 	public ChunkRenderable(Chunk chunk, boolean solid)
@@ -23,16 +27,21 @@ public class ChunkRenderable extends Renderable
 	
 	public void setRenderer(ChunkRenderer renderer)
 	{
-		if(this.renderFunc == null)
+		if(this.renderFullFunc == null)
 		{
 			if(solid)
 			{
-				renderFunc = renderer::renderSolid;
+				renderGeomFunc = renderer::renderSolidGeometry;
+				renderShadowFunc = renderer::renderSolidShadow;
+				renderFullFunc = renderer::renderSolidFull;
+				
 				triangleCountFunc = renderer::getSolidTriangles;
 			}
 			else
 			{
-				renderFunc = renderer::renderTranslucent;
+				renderGeomFunc = renderer::renderTranslucent;
+				renderFullFunc = renderer::renderTranslucent;
+				
 				triangleCountFunc = renderer::getTranslucentTriangles;
 			}
 		}
@@ -47,12 +56,24 @@ public class ChunkRenderable extends Renderable
 	@Override
 	public boolean shouldRender(FrustumIntersection frustum)
 	{
-		return !chunk.empty() && renderFunc != null && triangleCountFunc.getAsInt() > 0 && chunk.testFrustum(frustum);
+		return !chunk.empty() && renderFullFunc != null && triangleCountFunc.getAsInt() > 0 && (frustum == null || chunk.testFrustum(frustum));
 	}
 	
 	@Override
-	public void render()
+	public void renderGeometry(ShaderProgram shader)
 	{
-		renderFunc.run();
+		renderGeomFunc.accept(shader);
+	}
+	
+	@Override
+	public void renderShadow(ShaderProgram shader)
+	{
+		renderShadowFunc.accept(shader);
+	}
+	
+	@Override
+	public void renderFull(ShaderProgram shader)
+	{
+		renderFullFunc.accept(shader);
 	}
 }

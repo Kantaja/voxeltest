@@ -1,33 +1,36 @@
 package info.kuonteje.voxeltest.render;
 
+import static org.lwjgl.opengl.ARBBindlessTexture.*;
+import static org.lwjgl.opengl.EXTTextureFilterAnisotropic.*;
 import static org.lwjgl.opengl.GL11C.*;
 import static org.lwjgl.opengl.GL21C.*;
 import static org.lwjgl.opengl.GL30C.*;
 import static org.lwjgl.opengl.GL45C.*;
 
+import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.assets.AssetType;
 import info.kuonteje.voxeltest.assets.TextureLoader;
 import info.kuonteje.voxeltest.data.EntryId;
-import info.kuonteje.voxeltest.util.MathUtil;
+import info.kuonteje.voxeltest.util.Lazy;
+import info.kuonteje.voxeltest.util.LazyInt;
 
-public class TextureArray
+public class TextureArray implements ITexture<TextureArray>
 {
-	private static final int maxArrayTextures;
+	private static final LazyInt maxArrayTextures = LazyInt.of(() -> glGetInteger(GL_MAX_ARRAY_TEXTURE_LAYERS));
 	
-	static
-	{
-		maxArrayTextures = glGetInteger(GL_MAX_ARRAY_TEXTURE_LAYERS);
-	}
-	
-	private final Texture texture;
+	private final SingleTexture texture;
 	private final int width, height, layers;
 	private final boolean mipmap;
+	
+	private final Lazy<TextureHandle<TextureArray>> bindlessHandle;
 	
 	private boolean finalized = false;
 	
 	public TextureArray(int width, int height, int layers)
 	{
-		if(layers > maxArrayTextures) throw new RuntimeException("Cannot create texture array of " + layers + " layers, max is " + maxArrayTextures);
+		if(layers > maxArrayTextures.get()) throw new RuntimeException("Cannot create texture array of " + layers + " layers, max is " + maxArrayTextures.get());
+		
+		VoxelTest.addDestroyable(this);
 		
 		int array = glCreateTextures(GL_TEXTURE_2D_ARRAY);
 		
@@ -35,7 +38,7 @@ public class TextureArray
 		this.height = height;
 		this.layers = layers;
 		
-		mipmap = TextureLoader.rForceMipmap.getAsBool() || (width == height && MathUtil.isPowerOf2(width) && TextureLoader.rMipmap.getAsBool());
+		mipmap = TextureLoader.rMipmap.getAsBool();
 		
 		glTextureParameteri(array, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTextureParameteri(array, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -43,9 +46,13 @@ public class TextureArray
 		glTextureParameteri(array, GL_TEXTURE_MIN_FILTER, mipmap ? GL_NEAREST_MIPMAP_LINEAR : GL_NEAREST);
 		glTextureParameteri(array, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		
-		glTextureStorage3D(array, mipmap ? (1 + (int)Math.round(MathUtil.log2((double)width))) : 1, GL_SRGB8_ALPHA8, width, height, layers);
+		glTextureParameterf(array, GL_TEXTURE_MAX_ANISOTROPY_EXT, TextureLoader.rTextureAnisotropy.get());
 		
-		texture = Texture.wrap(width, height, array);
+		glTextureStorage3D(array, mipmap ? SingleTexture.calculateMipLevels(width, height, 1) : 1, GL_SRGB8_ALPHA8, width, height, layers);
+		
+		texture = SingleTexture.wrap(width, height, layers, array);
+		
+		bindlessHandle = Lazy.of(() -> new TextureHandle<>(this, glGetTextureHandleARB(array)));
 	}
 	
 	public void addTexture(int layer, EntryId textureId, ITextureProvider provider)
@@ -56,7 +63,7 @@ public class TextureArray
 		if(layer >= layers) throw new RuntimeException("Failed to add asset \"" + textureId.toString() + "\" of type " +
 				AssetType.TEXTURE.toString() + " to texture array on layer " + layer + ": layer out of range [0," + (layers - 1) + ")");
 		
-		provider = provider == null ? TextureLoader.DEFAULT_PROVIDER : provider;
+		if(provider == null) provider = TextureLoader.DEFAULT_PROVIDER;
 		
 		ITextureProvider.TextureData data;
 		
@@ -92,21 +99,56 @@ public class TextureArray
 	{
 		finalized = true;
 		
-		if(mipmap) glGenerateTextureMipmap(texture.handle());
+		if(mipmap) texture.generateMipmaps();
 	}
 	
+	@Override
+	public int handle()
+	{
+		return texture.handle();
+	}
+	
+	@Override
+	public TextureHandle<TextureArray> getBindlessHandle(boolean makeResident)
+	{
+		TextureHandle<TextureArray> handle = bindlessHandle.get();
+		return makeResident ? handle.makeResident() : handle;
+	}
+	
+	@Override
+	public int width()
+	{
+		return width;
+	}
+	
+	@Override
+	public int height()
+	{
+		return height;
+	}
+	
+	@Override
+	public int depth()
+	{
+		return layers;
+	}
+	
+	@Override
 	public void bind(int unit)
 	{
 		texture.bind(unit);
 	}
 	
+	@Override
 	public void unbind(int unit)
 	{
 		texture.unbind(unit);
 	}
 	
+	@Override
 	public void destroy()
 	{
 		texture.destroy();
+		VoxelTest.removeDestroyable(this);
 	}
 }
