@@ -20,6 +20,7 @@ public class Console
 		INVALID_I64,
 		INVALID_F64,
 		INVALID_STRING,
+		INVALID_ENUM,
 		NOT_FOUND,
 		CHEATS_REQUIRED,
 		EMPTY_LINE,
@@ -79,8 +80,8 @@ public class Console
 		return addCommand(name, action, flags, null);
 	}
 	
-	private static final String[] CVAR_ERROR_STRINGS = { "Command or cvar '%1$s' not found", "Invalid i64 '%2$s'", "Invalid f64 '%2$s'", "Invalid string '%2$s'???", "sv_cheats must not be 0", "Cvar '%1$s' is read-only" };
-	private static final CommandResult[] CVAR_ERROR_RESULTS = { CommandResult.NOT_FOUND, CommandResult.INVALID_I64, CommandResult.INVALID_F64, CommandResult.INVALID_STRING, CommandResult.CHEATS_REQUIRED, CommandResult.CVAR_READ_ONLY };
+	private static final String[] CVAR_ERROR_STRINGS = { "Command or cvar '%1$s' not found", "Invalid i64 '%2$s'", "Invalid f64 '%2$s'", "Invalid string '%2$s'???", "sv_cheats must not be 0", "Cvar '%1$s' is read-only", "Invalid value '%2$s'" };
+	private static final CommandResult[] CVAR_ERROR_RESULTS = { CommandResult.NOT_FOUND, CommandResult.INVALID_I64, CommandResult.INVALID_F64, CommandResult.INVALID_STRING, CommandResult.CHEATS_REQUIRED, CommandResult.CVAR_READ_ONLY, CommandResult.INVALID_ENUM };
 	
 	public CommandResult execute(List<String> line)
 	{
@@ -108,11 +109,7 @@ public class Console
 			
 			if(cvar != null)
 			{
-				String latch = cvar.latchValueAsString();
-				
-				System.out.println(commandName + " -> " + cvar.asString() + " (default " + cvar.defaultValueAsString() + ", flags [" + Cvar.Flags.toString(cvar.getFlags()) + "]"
-						+ (!latch.equals("null") ? (", latch " + latch) : (cvar.testFlag(Cvar.Flags.LATCH) ? ", no latch value" : "")) + ")");
-				
+				System.out.println(cvar.toString());
 				return CommandResult.CVAR_PRINTED;
 			}
 			else

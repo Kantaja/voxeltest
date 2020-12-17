@@ -6,6 +6,7 @@ uniform bool ssao;
 uniform vec2 size;
 uniform int halfNoiseSize;
 
+uniform int tmo;
 uniform float exposure;
 
 const mat3 acesIn = mat3(
@@ -49,6 +50,13 @@ vec3 tonemapUc2(vec3 texel) {
 	return uc2Curve(texel * exposure * 2.0) * whiteScale;
 }
 
+vec3 tonemapReinhard(vec3 texel) {
+	const float whitePoint = 11.2;
+	const vec3 whiteScale = vec3(1.0) / vec3(whitePoint * whitePoint);
+
+	return (texel * (1.0 + texel * whiteScale)) / (1.0 + texel);
+}
+
 float blurAo() {
 	float blurred = 0.0;
 
@@ -72,7 +80,11 @@ void main() {
 	float ao = ssao ? blurAo() : 1.0;
 	color.xyz *= ao;
 
-	// config?
-	color.xyz = tonemapUc2(color.xyz);
-	//color.xyz = tonemapAces(color.xyz);
+	if(tmo == 0) {
+		color.xyz = tonemapUc2(color.xyz);
+	} else if(tmo == 1) {
+		color.xyz = tonemapAces(color.xyz);
+	} else if(tmo == 2) {
+		color.xyz = tonemapReinhard(color.xyz);
+	}
 }

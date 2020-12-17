@@ -24,6 +24,7 @@ import org.lwjgl.system.MemoryUtil;
 
 import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.console.Cvar;
+import info.kuonteje.voxeltest.console.CvarEnum;
 import info.kuonteje.voxeltest.console.CvarF64;
 import info.kuonteje.voxeltest.console.CvarI64;
 import info.kuonteje.voxeltest.console.CvarRegistry;
@@ -78,6 +79,7 @@ public class Renderer
 	
 	private static final ShaderProgram tonemapShader;
 	
+	public static final CvarEnum<TonemapOperator> rTmo;
 	public static final CvarF64 rExposure;
 	
 	private static final PostProcessor postProcessor;
@@ -150,6 +152,9 @@ public class Renderer
 		
 		tonemapShader = ForwardFramebuffer.createFbShader("hdr_final");
 		tonemapShader.upload("lumSampler", finalLuminance.getBindlessHandle());
+		
+		rTmo = cvars.getCvarEnumC(TonemapOperator.class, "r_tmo", TonemapOperator.UC2, Cvar.Flags.CONFIG, null, (n, o) -> VoxelTest.addRenderHook(() -> tonemapShader.upload("tmo", n.getId())));
+		tonemapShader.upload("tmo", rTmo.get().getId());
 		
 		rExposure = cvars.getCvarF64C("r_exposure", 1.0, Cvar.Flags.CONFIG, v -> Math.max(v, 0.0), (n, o) -> VoxelTest.addRenderHook(() -> tonemapShader.upload("exposure", (float)n)));
 		tonemapShader.upload("exposure", rExposure.getAsFloat());

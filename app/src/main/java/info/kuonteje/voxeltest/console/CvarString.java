@@ -121,7 +121,8 @@ public final class CvarString extends Cvar
 	@Override
 	public String latchValueAsString(boolean quoteStrings)
 	{
-		return latchValue == null ? null : (quoteStrings ? ("\"" + latchValue() + "\"") : latchValue());
+		String latch = latchValue();
+		return latch == null ? null : (quoteStrings ? ("\"" + latch.toString() + "\"") : latch.toString());
 	}
 	
 	@Override

@@ -134,7 +134,8 @@ public final class CvarI64 extends Cvar
 	@Override
 	public String latchValueAsString(boolean quoteStrings)
 	{
-		return String.valueOf(latchValue());
+		Long latch = latchValue();
+		return latch == null ? null : latch.toString();
 	}
 	
 	@Override

@@ -34,12 +34,14 @@ public class CvarRegistry
 		I64_SET(1),
 		F64_SET(2),
 		STRING_SET(3),
+		ENUM_SET(5),
 		NOT_FOUND(0),
 		INVALID_I64(-1),
 		INVALID_F64(-2),
 		INVALID_STRING(-3), // null
 		CHEATS_REQUIRED(-4),
-		READ_ONLY(-5);
+		READ_ONLY(-5),
+		INVALID_ENUM(-6);
 		
 		private final int idx;
 		
@@ -305,6 +307,62 @@ public class CvarRegistry
 	public CvarI64 getCvarBool(String name, boolean initialValue, int flags)
 	{
 		return getCvarBool(name, initialValue, flags, null, true);
+	}
+	
+	@SuppressWarnings("unchecked")
+	public <T extends Enum<T>> CvarEnum<T> getCvarEnum(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, ToBoolBiFunction<T, T> callback, boolean createIfMissing)
+	{
+		name = name.toLowerCase();
+		
+		synchronized(cvars)
+		{
+			Cvar existing = cvars.get(name);
+			
+			if(existing != null)
+			{
+				if(existing.getType() == Cvar.Type.STRING) return null;
+				
+				CvarEnum<?> e = (CvarEnum<?>)existing;
+				return e.getEnumType() == enumType ? (CvarEnum<T>)e : null;
+			}
+			else if(!createIfMissing) return null;
+			
+			CvarEnum<T> result = new CvarEnum<>(this, enumType, name, initialValue, flags, transformer, callback);
+			
+			if(result.testFlag(Cvar.Flags.CONFIG))
+			{
+				String cached = getCached(name);
+				if(cached != null) result.setString(cached, true);
+			}
+			
+			cvars.put(name, result);
+			
+			return result;
+		}
+	}
+	
+	public <T extends Enum<T>> CvarEnum<T> getCvarEnumC(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, BiConsumer<T, T> callback, boolean createIfMissing)
+	{
+		return getCvarEnum(enumType, name, initialValue, flags, transformer, callback == null ? null : (n, o) ->
+		{
+			callback.accept(n, o);
+			return true;
+		}, createIfMissing);
+	}
+	
+	public <T extends Enum<T>> CvarEnum<T> getCvarEnum(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, ToBoolBiFunction<T, T> callback)
+	{
+		return getCvarEnum(enumType, name, initialValue, flags, transformer, callback, true);
+	}
+	
+	public <T extends Enum<T>> CvarEnum<T> getCvarEnumC(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, BiConsumer<T, T> callback)
+	{
+		return getCvarEnumC(enumType, name, initialValue, flags, transformer, callback, true);
+	}
+	
+	public <T extends Enum<T>> CvarEnum<T> getCvarEnum(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer)
+	{
+		return getCvarEnumC(enumType, name, initialValue, flags, transformer, (BiConsumer<T, T>)null, true);
 	}
 	
 	public Cvar getCvar(String name)

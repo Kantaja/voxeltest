@@ -2,14 +2,15 @@ package info.kuonteje.voxeltest.console;
 
 import info.kuonteje.voxeltest.console.CvarRegistry.SetResult;
 
-public abstract sealed class Cvar permits CvarI64, CvarF64, CvarString
+public abstract sealed class Cvar permits CvarI64, CvarF64, CvarString, SealedGenericWorkaround
 {
 	public static enum Type
 	{
 		NONE,
 		I64,
 		F64,
-		STRING
+		STRING,
+		ENUM
 	}
 	
 	public static class Flags
@@ -67,10 +68,7 @@ public abstract sealed class Cvar permits CvarI64, CvarF64, CvarString
 		latchLock = testFlag(Flags.LATCH) ? new Object() : null;
 	}
 	
-	public Type getType()
-	{
-		return Type.NONE;
-	}
+	public abstract Type getType();
 	
 	public String name()
 	{
@@ -120,5 +118,13 @@ public abstract sealed class Cvar permits CvarI64, CvarF64, CvarString
 	public CvarRegistry getRegistry()
 	{
 		return registry;
+	}
+	
+	@Override
+	public String toString()
+	{
+		String latch = latchValueAsString();
+		return name + " -> " + asString() + " (default " + defaultValueAsString() + ", flags [" + Flags.toString(getFlags()) +
+				"]" + (latch != null ? (", latch " + latch) : (testFlag(Cvar.Flags.LATCH) ? ", no latch value" : "")) + ")";
 	}
 }
