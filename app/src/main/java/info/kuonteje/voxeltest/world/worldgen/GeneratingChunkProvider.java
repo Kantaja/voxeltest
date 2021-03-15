@@ -54,7 +54,7 @@ public class GeneratingChunkProvider implements IChunkProvider
 					.build())
 			.water(WaterConfig.builder()
 					.liquid(Blocks.WATER)
-					.liquidTop(Blocks.EMERALD_ORE)
+					.liquidTop(Blocks.SAND)
 					.seaLevel(0)
 					.build())
 			.build();
