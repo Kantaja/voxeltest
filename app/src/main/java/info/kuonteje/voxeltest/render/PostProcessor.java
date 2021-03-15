@@ -47,7 +47,7 @@ public class PostProcessor
 	private void runStep(ShaderProgram shader)
 	{
 		b.bind();
-		a.draw(shader, front.getDepthTexture());
+		a.draw(shader, front.depthTexture());
 		
 		ForwardFramebuffer tmp = a;
 		a = b;

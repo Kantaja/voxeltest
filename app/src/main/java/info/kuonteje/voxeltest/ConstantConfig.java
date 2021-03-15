@@ -2,6 +2,7 @@ package info.kuonteje.voxeltest;
 
 import static org.lwjgl.glfw.GLFW.*;
 
+// TODO config
 public class ConstantConfig
 {
 	public static final int CFG_KEY_FORWARD = GLFW_KEY_W;

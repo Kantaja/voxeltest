@@ -6,6 +6,6 @@ public class AssetNotFoundException extends RuntimeException
 	
 	public AssetNotFoundException(String domain, String id, AssetType type)
 	{
-		super("Failed to load asset \"" + domain + ":" + id + "\" of type " + type.toString() + " - asset not found");
+		super("Failed to load asset \"" + domain + ":" + id + "\" of type " + type.id().toString() + " - asset not found");
 	}
 }

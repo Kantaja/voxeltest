@@ -20,6 +20,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.joml.Vector3d;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.SerializationFeature;
+
 import info.kuonteje.voxeltest.console.Console;
 import info.kuonteje.voxeltest.console.Cvar;
 import info.kuonteje.voxeltest.console.CvarI64;
@@ -40,7 +45,19 @@ public class VoxelTest
 	
 	public static final Console CONSOLE = new Console(CFG_PATH);
 	
-	public static final CvarI64 vsyncInterval = CONSOLE.cvars().getCvarI64C("vsync_interval", 1L, Cvar.Flags.CONFIG, v -> Math.max(v, 0L), (n, o) -> addRenderHook(() -> getWindow().setSwapInterval((int)n)));
+	public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+			.enable(JsonParser.Feature.ALLOW_COMMENTS)
+			.enable(SerializationFeature.INDENT_OUTPUT)
+			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+	
+	public static final CvarI64 eWorkers = CONSOLE.cvars().cvarI64("e_workers", Math.max(1, Runtime.getRuntime().availableProcessors() / 2), Cvar.Flags.CONFIG | Cvar.Flags.LATCH, v -> MathUtil.clamp(v, 1, Runtime.getRuntime().availableProcessors()));
+	
+	public static final CvarI64 clWindowedWidth = CONSOLE.cvars().cvarI64("cl_windowed_width", 1366L, Cvar.Flags.CONFIG, v -> Math.max(v, 0L), (n, o) -> addRenderHook(() -> window().setSize((int)n, window().height())));
+	public static final CvarI64 clWindowedHeight = CONSOLE.cvars().cvarI64("cl_windowed_height", 768L, Cvar.Flags.CONFIG, v -> Math.max(v, 0L), (n, o) -> addRenderHook(() -> window().setSize(window().width(), (int)n)));
+	
+	public static final CvarI64 clFullscreen = CONSOLE.cvars().cvarBool("cl_fullscreen", false, Cvar.Flags.CONFIG, null, (n, o) -> addRenderHook(() -> { if(n != o) window().toggleFullscreen0(); }));
+	
+	public static final CvarI64 clVsyncInterval = CONSOLE.cvars().cvarI64("cl_vsync_interval", 1L, Cvar.Flags.CONFIG, v -> Math.max(v, 0L), (n, o) -> addRenderHook(() -> window().setSwapInterval((int)n)));
 	
 	private static final AtomicBoolean shuttingDown = new AtomicBoolean(false);
 	private static final List<Runnable> shutdownHooks = Collections.synchronizedList(new ArrayList<>());
@@ -58,6 +75,8 @@ public class VoxelTest
 	private static World world;
 	
 	private static volatile double frameStart, partialTick;
+	
+	private static volatile boolean initialized = false;
 	
 	public static void main(String[] args)
 	{
@@ -82,9 +101,9 @@ public class VoxelTest
 				}
 			}
 			
-			threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+			threadPool = Executors.newFixedThreadPool(eWorkers.asInt());
 			
-			window = new Window("VoxelTest", 1366, 768);
+			window = new Window("VoxelTest", clWindowedWidth.asInt(), clWindowedHeight.asInt(), clFullscreen.asBool());
 			Renderer.init(window);
 			
 			DefaultRegistries.init();
@@ -93,8 +112,9 @@ public class VoxelTest
 			
 			camera = new DebugCamera(window::getKey, window::getMouse);
 			
-			window.setSwapInterval(vsyncInterval.getAsInt());
+			window.setSwapInterval(clVsyncInterval.asInt());
 			
+			//Ticks.addTickHandler(world = new World(-5477951967142400137L));
 			Ticks.addTickHandler(world = new World());
 			addShutdownHook(world::destroy);
 			
@@ -106,6 +126,8 @@ public class VoxelTest
 			renderThreadId = Thread.currentThread().getId();
 			
 			window.captureMouse();
+			
+			initialized = true;
 			
 			double previousTime = frameStart = glfwGetTime();
 			double delta;
@@ -124,20 +146,19 @@ public class VoxelTest
 				{
 					Vector3d pos = camera.getPosition(new Vector3d());
 					
-					int chunkX = MathUtil.fastFloor(pos.x / 32.0);
-					int chunkY = MathUtil.fastFloor(pos.y / 32.0);
-					int chunkZ = MathUtil.fastFloor(pos.z / 32.0);
+					int x = MathUtil.fastFloor(pos.x);
+					int y = MathUtil.fastFloor(pos.y);
+					int z = MathUtil.fastFloor(pos.z);
 					
-					window.setTitle("VoxelTest (" + (Math.round(frames / accum * 100.0) / 100.0) + " fps, " + (Math.round(accum / frames * 100000.0) / 100.0) + " ms), camera position ("
-							+ MathUtil.fastFloor(pos.x) + ", " + MathUtil.fastFloor(pos.y) + ", " + MathUtil.fastFloor(pos.z) + "), in chunk ("
-							+ chunkX + ", " + chunkY + ", " + chunkZ + ") - " + world.getChunkStatus(chunkX, chunkY, chunkZ).toString());
+					window.setTitle("VoxelTest (" + MathUtil.roundDisplay(frames / accum) + " fps, " + MathUtil.roundDisplay(accum / frames * 1000.0) + " ms), camera position ("
+							+ x + ", " + y + ", " + z + "), in chunk (" + (x >> 5) + ", " + (y >> 5) + ", " + (z >> 5) + ") - " + world.statusOfChunkAt(x >> 5, y >> 5, z >> 5).toString());
 					
 					frames = 0;
 					accum = 0.0;
 				}
 				
 				frameStart = glfwGetTime();
-				partialTick = ((frameStart - Ticks.lastTickTime()) - Ticks.getTickLength()) * Ticks.getTickrate();
+				partialTick = ((frameStart - Ticks.lastTickTime()) - Ticks.tickLength()) * Ticks.tickrate();
 				
 				camera.frame(delta);
 				Renderer.beginFrame(camera);
@@ -168,22 +189,22 @@ public class VoxelTest
 		CONSOLE.save();
 	}
 	
-	public static double getFrameStart()
+	public static double frameStart()
 	{
 		return frameStart;
 	}
 	
-	public static double getPartialTick()
+	public static double partialTick()
 	{
 		return partialTick;
 	}
 	
-	public static ExecutorService getThreadPool()
+	public static ExecutorService threadPool()
 	{
 		return threadPool;
 	}
 	
-	public static Window getWindow()
+	public static Window window()
 	{
 		return window;
 	}
@@ -210,7 +231,7 @@ public class VoxelTest
 	
 	public static void addRenderHook(Runnable hook, boolean forceSchedule)
 	{
-		if(!forceSchedule && Thread.currentThread().getId() == renderThreadId) hook.run();
+		if(!forceSchedule && initialized && Thread.currentThread().getId() == renderThreadId) hook.run();
 		else renderHooks.add(hook);
 	}
 	

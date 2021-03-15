@@ -1,14 +1,25 @@
 package info.kuonteje.voxeltest.data;
 
+import java.io.IOException;
 import java.util.Objects;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
 import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.util.LazyInt;
 
+@JsonDeserialize(using = EntryId.Deserializer.class)
 public final class EntryId
 {
 	private final String domain, id;
 	
+	@JsonIgnore
 	private final LazyInt hash;
 	
 	private EntryId(String domain, String id)
@@ -30,6 +41,7 @@ public final class EntryId
 	}
 	
 	@Override
+	@JsonValue
 	public String toString()
 	{
 		return domain + ":" + id;
@@ -67,5 +79,28 @@ public final class EntryId
 	{
 		int colon = id.indexOf(':');
 		return colon != -1 ? new EntryId(id.substring(0, colon), idPrefix + "/" + id.substring(colon + 1, id.length())) : new EntryId(VoxelTest.DEFAULT_DOMAIN, idPrefix + "/" + id);
+	}
+	
+	public static EntryId createPrefixed(EntryId id, String idPrefix)
+	{
+		return createPrefixed(id.domain, id.id, idPrefix);
+	}
+	
+	public static class Deserializer extends StdDeserializer<EntryId>
+	{
+		private static final long serialVersionUID = 1L;
+		
+		public Deserializer()
+		{
+			super(EntryId.class);
+		}
+		
+		@Override
+		public EntryId deserialize(JsonParser parser, DeserializationContext ctx) throws IOException, JsonProcessingException
+		{
+			// TODO this complains about deserializing to a String when it receives e.g. a JSON object, instead of an EntryId
+			// rewrite for better error messages?
+			return EntryId.create(parser.getCodec().readValue(parser, String.class));
+		}
 	}
 }

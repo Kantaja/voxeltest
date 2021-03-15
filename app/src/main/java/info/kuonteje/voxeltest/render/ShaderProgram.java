@@ -12,19 +12,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.joml.Matrix3dc;
 import org.joml.Matrix3fc;
+import org.joml.Matrix4dc;
 import org.joml.Matrix4fc;
+import org.joml.Vector2dc;
 import org.joml.Vector2fc;
 import org.joml.Vector2ic;
+import org.joml.Vector3dc;
 import org.joml.Vector3fc;
 import org.joml.Vector3ic;
+import org.joml.Vector4dc;
 import org.joml.Vector4fc;
 import org.joml.Vector4ic;
 import org.lwjgl.system.MemoryStack;
 
 import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.assets.AssetLoader;
-import info.kuonteje.voxeltest.assets.AssetType;
+import info.kuonteje.voxeltest.data.objects.AssetTypes;
 import info.kuonteje.voxeltest.util.Either;
 import info.kuonteje.voxeltest.util.IDestroyable;
 import info.kuonteje.voxeltest.util.Lazy;
@@ -105,6 +110,12 @@ public class ShaderProgram implements IDestroyable
 		if(handle >= 0) glProgramUniform1f(program, handle, x);
 	}
 	
+	public void upload(String uniform, double x)
+	{
+		int handle = uniformHandle(uniform);
+		if(handle >= 0) glProgramUniform1f(program, handle, (float)x);
+	}
+	
 	public void upload(String uniform, int x)
 	{
 		int handle = uniformHandle(uniform);
@@ -129,6 +140,12 @@ public class ShaderProgram implements IDestroyable
 		if(handle >= 0) glProgramUniform2f(program, handle, x, y);
 	}
 	
+	public void upload(String uniform, double x, double y)
+	{
+		int handle = uniformHandle(uniform);
+		if(handle >= 0) glProgramUniform2f(program, handle, (float)x, (float)y);
+	}
+	
 	public void upload(String uniform, int x, int y)
 	{
 		int handle = uniformHandle(uniform);
@@ -145,6 +162,12 @@ public class ShaderProgram implements IDestroyable
 	{
 		int handle = uniformHandle(uniform);
 		if(handle >= 0) glProgramUniform3f(program, handle, x, y, z);
+	}
+	
+	public void upload(String uniform, double x, double y, double z)
+	{
+		int handle = uniformHandle(uniform);
+		if(handle >= 0) glProgramUniform3f(program, handle, (float)x, (float)y, (float)z);
 	}
 	
 	public void upload(String uniform, int x, int y, int z)
@@ -165,6 +188,12 @@ public class ShaderProgram implements IDestroyable
 		if(handle >= 0) glProgramUniform4f(program, handle, x, y, z, w);
 	}
 	
+	public void upload(String uniform, double x, double y, double z, double w)
+	{
+		int handle = uniformHandle(uniform);
+		if(handle >= 0) glProgramUniform4f(program, handle, (float)x, (float)y, (float)z, (float)w);
+	}
+	
 	public void upload(String uniform, int x, int y, int z, int w)
 	{
 		int handle = uniformHandle(uniform);
@@ -178,6 +207,11 @@ public class ShaderProgram implements IDestroyable
 	}
 	
 	public void upload(String uniform, Vector2fc vector)
+	{
+		upload(uniform, vector.x(), vector.y());
+	}
+	
+	public void upload(String uniform, Vector2dc vector)
 	{
 		upload(uniform, vector.x(), vector.y());
 	}
@@ -197,6 +231,11 @@ public class ShaderProgram implements IDestroyable
 		upload(uniform, vector.x(), vector.y(), vector.z());
 	}
 	
+	public void upload(String uniform, Vector3dc vector)
+	{
+		upload(uniform, vector.x(), vector.y(), vector.z());
+	}
+	
 	public void upload(String uniform, Vector3ic vector)
 	{
 		upload(uniform, vector.x(), vector.y(), vector.z());
@@ -208,6 +247,11 @@ public class ShaderProgram implements IDestroyable
 	}
 	
 	public void upload(String uniform, Vector4fc vector)
+	{
+		upload(uniform, vector.x(), vector.y(), vector.z(), vector.w());
+	}
+	
+	public void upload(String uniform, Vector4dc vector)
 	{
 		upload(uniform, vector.x(), vector.y(), vector.z(), vector.w());
 	}
@@ -237,7 +281,37 @@ public class ShaderProgram implements IDestroyable
 		}
 	}
 	
+	public void upload(String uniform, Matrix3dc matrix)
+	{
+		int handle = uniformHandle(uniform);
+		
+		if(handle >= 0)
+		{
+			try(MemoryStack stack = MemoryStack.stackPush())
+			{
+				FloatBuffer matrixBuf = stack.mallocFloat(9);
+				matrix.get(matrixBuf);
+				glProgramUniformMatrix3fv(program, handle, false, matrixBuf);
+			}
+		}
+	}
+	
 	public void upload(String uniform, Matrix4fc matrix)
+	{
+		int handle = uniformHandle(uniform);
+		
+		if(handle >= 0)
+		{
+			try(MemoryStack stack = MemoryStack.stackPush())
+			{
+				FloatBuffer matrixBuf = stack.mallocFloat(16);
+				matrix.get(matrixBuf);
+				glProgramUniformMatrix4fv(program, handle, false, matrixBuf);
+			}
+		}
+	}
+	
+	public void upload(String uniform, Matrix4dc matrix)
 	{
 		int handle = uniformHandle(uniform);
 		
@@ -291,11 +365,11 @@ public class ShaderProgram implements IDestroyable
 	
 	public static int loadShaderObject(String id, ShaderType type, List<String> includeIds)
 	{
-		id += type.getSuffix();
+		id += type.suffix();
 		
-		String src = AssetLoader.loadTextAsset(AssetType.SHADER, id);
+		String src = AssetLoader.loadTextAsset(AssetTypes.SHADER, id);
 		
-		int shader = glCreateShader(type.getGlType());
+		int shader = glCreateShader(type.glType());
 		
 		if(includeIds.isEmpty()) glShaderSource(shader, SHADER_PRE, src);
 		else
@@ -327,7 +401,7 @@ public class ShaderProgram implements IDestroyable
 	
 	private static String getInclude(String id)
 	{
-		return includes.computeIfAbsent(id, s -> AssetLoader.loadTextAsset(AssetType.SHADER, s + ".inc"));
+		return includes.computeIfAbsent(id, s -> AssetLoader.loadTextAsset(AssetTypes.SHADER, s + ".inc"));
 	}
 	
 	public static Builder builder()

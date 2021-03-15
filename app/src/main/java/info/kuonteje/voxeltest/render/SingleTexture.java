@@ -47,7 +47,7 @@ public class SingleTexture implements ITexture<SingleTexture>
 	}
 	
 	@Override
-	public TextureHandle<SingleTexture> getBindlessHandle(boolean makeResident)
+	public TextureHandle<SingleTexture> bindlessHandle(boolean makeResident)
 	{
 		TextureHandle<SingleTexture> handle = bindlessHandle.get();
 		return makeResident ? handle.makeResident() : handle;
@@ -175,6 +175,6 @@ public class SingleTexture implements ITexture<SingleTexture>
 	
 	public static int calculateMipLevels(int width, int height, int depth)
 	{
-		return 1 + (int)Math.floor(MathUtil.log2((double)Math.max(width, Math.max(height, depth))));
+		return 1 + MathUtil.floorLog2(Math.max(width, Math.max(height, depth)));
 	}
 }

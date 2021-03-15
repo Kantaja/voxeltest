@@ -8,12 +8,12 @@ uniform vec3 sunDir;
 uniform float sunIntensity;
 
 void main() {
-	color = texture(albedo, uv);
+	color = getAlbedo();
 
-	float sunlight = clamp(dot(texture(normal, uv).xyz, -sunDir), 0.0, 1.0) * sunIntensity;
+	float sunlight = clamp(dot(getNormal(), -sunDir), 0.0, 1.0) * sunIntensity;
 
-	vec4 lightSpacePos = lightPv * vec4(texture(position, uv).xyz, 1.0);
-	float shadow = (lightSpacePos.z + 0.0016 < texture(shadowmapSampler, lightSpacePos.xy).x) ? 0.0 : 1.0;
+	vec4 lightSpacePos = lightPv * vec4(getPosition(), 1.0);
+	float shadow = (lightSpacePos.z < texture(shadowmapSampler, lightSpacePos.xy).x) ? 0.0 : 1.0;
 
 	color.xyz *= ambientStrength + sunlight * shadow;
 }

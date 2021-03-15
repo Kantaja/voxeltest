@@ -54,7 +54,7 @@ vec3 tonemapReinhard(vec3 texel) {
 	const float whitePoint = 11.2;
 	const vec3 whiteScale = vec3(1.0) / vec3(whitePoint * whitePoint);
 
-	return (texel * (1.0 + texel * whiteScale)) / (1.0 + texel);
+	return (texel * exposure * (1.0 + texel * whiteScale)) / (1.0 + texel);
 }
 
 float blurAo() {
@@ -74,17 +74,14 @@ void main() {
 
 	color = vec4(texture(colorSampler, uv).xyz, 1.0);
 
-	float luminance = texelFetch(lumSampler, ivec2(0, 0), 0).x;
-	luminance = sqrt(luminance);
-
 	float ao = ssao ? blurAo() : 1.0;
 	color.xyz *= ao;
 
-	if(tmo == 0) {
+	if(tmo == 1) {
 		color.xyz = tonemapUc2(color.xyz);
-	} else if(tmo == 1) {
-		color.xyz = tonemapAces(color.xyz);
 	} else if(tmo == 2) {
+		color.xyz = tonemapAces(color.xyz);
+	} else if(tmo == 3) {
 		color.xyz = tonemapReinhard(color.xyz);
 	}
 }

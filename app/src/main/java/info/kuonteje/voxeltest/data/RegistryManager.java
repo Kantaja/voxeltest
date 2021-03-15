@@ -20,6 +20,7 @@ public class RegistryManager
 	
 	public static void freezeAll()
 	{
+		System.out.println("Freezing registries");
 		masterRegistry.values().forEach(Registry::freeze);
 	}
 }

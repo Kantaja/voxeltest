@@ -6,21 +6,19 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import info.kuonteje.voxeltest.util.MiscUtil;
 import info.kuonteje.voxeltest.util.functional.BooleanBiConsumer;
+import info.kuonteje.voxeltest.util.functional.BooleanUnaryOperator;
 import info.kuonteje.voxeltest.util.functional.DoubleBiConsumer;
 import info.kuonteje.voxeltest.util.functional.LongBiConsumer;
-import info.kuonteje.voxeltest.util.functional.ToBoolBiFunction;
-import info.kuonteje.voxeltest.util.functional.ToBoolBooleanBiFunction;
-import info.kuonteje.voxeltest.util.functional.ToBoolDoubleBiFunction;
-import info.kuonteje.voxeltest.util.functional.ToBoolLongBiFunction;
-import it.unimi.dsi.fastutil.doubles.Double2DoubleFunction;
-import it.unimi.dsi.fastutil.longs.Long2LongFunction;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMaps;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -30,7 +28,6 @@ public class CvarRegistry
 {
 	public static enum SetResult
 	{
-		CALLBACK_CANCELED(4),
 		I64_SET(1),
 		F64_SET(2),
 		STRING_SET(3),
@@ -50,7 +47,7 @@ public class CvarRegistry
 			this.idx = idx;
 		}
 		
-		public int getIdx()
+		public int idx()
 		{
 			return idx;
 		}
@@ -65,6 +62,52 @@ public class CvarRegistry
 	public CvarRegistry(Console console)
 	{
 		this.console = console;
+		
+		console.addCommand("cvarlist", (c, args) ->
+		{
+			String search = args.size() > 1 ? args.get(1).toLowerCase() : null;
+			
+			synchronized(cvars)
+			{
+				Object2ObjectMaps.fastForEach(cvars, e ->
+				{
+					if(search == null || e.getValue().name().contains(search)) System.out.println(e.getValue().toString());
+				});
+			}
+		}, Command.Flags.IMMUTABLE);
+		
+		console.addCommand("reset", (c, args) ->
+		{
+			if(args.size() < 2)
+			{
+				System.out.println("reset <cvar>");
+				return;
+			}
+			
+			String name = args.get(1).toLowerCase();
+			Cvar cvar = cvars.get(name);
+			
+			if(cvar == null)
+			{
+				System.out.println("Cvar '" + name + "' not found");
+				return;
+			}
+			
+			cvar.reset();
+		}, Command.Flags.IMMUTABLE);
+		
+		console.addCommand("resetall", (c, args) ->
+		{
+			boolean cheats = c.cheatsEnabled();
+			
+			synchronized(cvars)
+			{
+				Object2ObjectMaps.fastForEach(cvars, e ->
+				{
+					if(cheats || !e.getValue().testFlag(Cvar.Flags.CHEAT)) e.getValue().reset();
+				});
+			}
+		}, Command.Flags.IMMUTABLE);
 	}
 	
 	public void save(Path configPath)
@@ -120,9 +163,9 @@ public class CvarRegistry
 		}
 	}
 	
-	private String getCached(String name)
+	private String cached(String name)
 	{
-		if(!loaded) load(console.getConfigPath());
+		if(!loaded) load(console.configPath());
 		
 		if(loadCache != null)
 		{
@@ -133,7 +176,8 @@ public class CvarRegistry
 		else return null;
 	}
 	
-	public CvarI64 getCvarI64(String name, long initialValue, int flags, Long2LongFunction transformer, ToBoolLongBiFunction callback, boolean createIfMissing)
+	// hey wouldn't it be nice if this language had default arguments
+	private CvarI64 cvarI64(String name, long initialValue, int flags, LongUnaryOperator transformer, LongBiConsumer callback, boolean createIfMissing)
 	{
 		name = name.toLowerCase();
 		
@@ -141,14 +185,14 @@ public class CvarRegistry
 		{
 			Cvar existing = cvars.get(name);
 			
-			if(existing != null) return existing.getType() == Cvar.Type.I64 ? (CvarI64)existing : null;
+			if(existing != null) return existing.type() == Cvar.Type.I64 ? (CvarI64)existing : null;
 			else if(!createIfMissing) return null;
 			
 			CvarI64 result = new CvarI64(this, name, initialValue, flags, transformer, callback);
 			
 			if(result.testFlag(Cvar.Flags.CONFIG))
 			{
-				String cached = getCached(name);
+				String cached = cached(name);
 				if(cached != null) result.setString(cached, true);
 			}
 			
@@ -158,31 +202,27 @@ public class CvarRegistry
 		}
 	}
 	
-	public CvarI64 getCvarI64C(String name, long initialValue, int flags, Long2LongFunction transformer, LongBiConsumer callback, boolean createIfMissing)
+	public CvarI64 cvarI64(String name, long initialValue, int flags, LongUnaryOperator transformer, LongBiConsumer callback)
 	{
-		return getCvarI64(name, initialValue, flags, transformer, callback == null ? null : (n, o) ->
-		{
-			callback.accept(n, o);
-			return true;
-		}, createIfMissing);
+		return cvarI64(name, initialValue, flags, transformer, callback, true);
 	}
 	
-	public CvarI64 getCvarI64(String name, long initialValue, int flags, Long2LongFunction transformer, ToBoolLongBiFunction callback)
+	public CvarI64 cvarI64(String name, long initialValue, int flags, LongUnaryOperator transformer)
 	{
-		return getCvarI64(name, initialValue, flags, transformer, callback, true);
+		return cvarI64(name, initialValue, flags, transformer, null, true);
 	}
 	
-	public CvarI64 getCvarI64C(String name, long initialValue, int flags, Long2LongFunction transformer, LongBiConsumer callback)
+	public CvarI64 cvarI64(String name, long initialValue, int flags)
 	{
-		return getCvarI64C(name, initialValue, flags, transformer, callback, true);
+		return cvarI64(name, initialValue, flags, null, null, true);
 	}
 	
-	public CvarI64 getCvarI64(String name, long initialValue, int flags, Long2LongFunction transformer)
+	public CvarI64 cvarI64(String name)
 	{
-		return getCvarI64C(name, initialValue, flags, transformer, (LongBiConsumer)null, true);
+		return cvarI64(name, 0L, 0, null, null, false);
 	}
 	
-	public CvarF64 getCvarF64(String name, double initialValue, int flags, Double2DoubleFunction transformer, ToBoolDoubleBiFunction callback, boolean createIfMissing)
+	private CvarF64 cvarF64(String name, double initialValue, int flags, DoubleUnaryOperator transformer, DoubleBiConsumer callback, boolean createIfMissing)
 	{
 		name = name.toLowerCase();
 		
@@ -190,14 +230,14 @@ public class CvarRegistry
 		{
 			Cvar existing = cvars.get(name);
 			
-			if(existing != null) return existing.getType() == Cvar.Type.F64 ? (CvarF64)existing : null;
+			if(existing != null) return existing.type() == Cvar.Type.F64 ? (CvarF64)existing : null;
 			else if(!createIfMissing) return null;
 			
 			CvarF64 result = new CvarF64(this, name, initialValue, flags, transformer, callback);
 			
 			if(result.testFlag(Cvar.Flags.CONFIG))
 			{
-				String cached = getCached(name);
+				String cached = cached(name);
 				if(cached != null) result.setString(cached, true);
 			}
 			
@@ -207,31 +247,27 @@ public class CvarRegistry
 		}
 	}
 	
-	public CvarF64 getCvarF64C(String name, double initialValue, int flags, Double2DoubleFunction transformer, DoubleBiConsumer callback, boolean createIfMissing)
+	public CvarF64 cvarF64(String name, double initialValue, int flags, DoubleUnaryOperator transformer, DoubleBiConsumer callback)
 	{
-		return getCvarF64(name, initialValue, flags, transformer, callback == null ? null : (n, o) ->
-		{
-			callback.accept(n, o);
-			return true;
-		}, createIfMissing);
+		return cvarF64(name, initialValue, flags, transformer, callback, true);
 	}
 	
-	public CvarF64 getCvarF64(String name, double initialValue, int flags, Double2DoubleFunction transformer, ToBoolDoubleBiFunction callback)
+	public CvarF64 cvarF64(String name, double initialValue, int flags, DoubleUnaryOperator transformer)
 	{
-		return getCvarF64(name, initialValue, flags, transformer, callback, true);
+		return cvarF64(name, initialValue, flags, transformer, null, true);
 	}
 	
-	public CvarF64 getCvarF64C(String name, double initialValue, int flags, Double2DoubleFunction transformer, DoubleBiConsumer callback)
+	public CvarF64 cvarF64(String name, double initialValue, int flags)
 	{
-		return getCvarF64C(name, initialValue, flags, transformer, callback, true);
+		return cvarF64(name, initialValue, flags, null, null, true);
 	}
 	
-	public CvarF64 getCvarF64(String name, double initialValue, int flags, Double2DoubleFunction transformer)
+	public CvarF64 cvarF64(String name)
 	{
-		return getCvarF64C(name, initialValue, flags, transformer, (DoubleBiConsumer)null, true);
+		return cvarF64(name, 0.0, 0, null, null, false);
 	}
 	
-	public CvarString getCvarString(String name, String initialValue, int flags, Function<String, String> transformer, ToBoolBiFunction<String, String> callback, boolean createIfMissing)
+	private CvarString cvarString(String name, String initialValue, int flags, Function<String, String> transformer, BiConsumer<String, String> callback, boolean createIfMissing)
 	{
 		name = name.toLowerCase();
 		
@@ -239,14 +275,14 @@ public class CvarRegistry
 		{
 			Cvar existing = cvars.get(name);
 			
-			if(existing != null) return existing.getType() == Cvar.Type.STRING ? (CvarString)existing : null;
+			if(existing != null) return existing.type() == Cvar.Type.STRING ? (CvarString)existing : null;
 			else if(!createIfMissing) return null;
 			
 			CvarString result = new CvarString(this, name, initialValue, flags, transformer, callback);
 			
 			if(result.testFlag(Cvar.Flags.CONFIG))
 			{
-				String cached = getCached(name);
+				String cached = cached(name);
 				if(cached != null) result.setString(cached, true);
 			}
 			
@@ -256,61 +292,55 @@ public class CvarRegistry
 		}
 	}
 	
-	public CvarString getCvarStringC(String name, String initialValue, int flags, Function<String, String> transformer, BiConsumer<String, String> callback, boolean createIfMissing)
+	public CvarString cvarString(String name, String initialValue, int flags, Function<String, String> transformer, BiConsumer<String, String> callback)
 	{
-		return getCvarString(name, initialValue, flags, transformer, callback == null ? null : (n, o) ->
-		{
-			callback.accept(n, o);
-			return true;
-		}, createIfMissing);
+		return cvarString(name, initialValue, flags, transformer, callback, true);
 	}
 	
-	public CvarString getCvarString(String name, String initialValue, int flags, Function<String, String> transformer, ToBoolBiFunction<String, String> callback)
+	public CvarString cvarString(String name, String initialValue, int flags, Function<String, String> transformer)
 	{
-		return getCvarString(name, initialValue, flags, transformer, callback, true);
+		return cvarString(name, initialValue, flags, transformer, null, true);
 	}
 	
-	public CvarString getCvarStringC(String name, String initialValue, int flags, Function<String, String> transformer, BiConsumer<String, String> callback)
+	public CvarString cvarString(String name, String initialValue, int flags)
 	{
-		return getCvarStringC(name, initialValue, flags, transformer, callback, true);
+		return cvarString(name, initialValue, flags, null, null, true);
 	}
 	
-	public CvarString getCvarString(String name, String initialValue, int flags, Function<String, String> transformer)
+	public CvarString cvarString(String name)
 	{
-		return getCvarStringC(name, initialValue, flags, transformer, (BiConsumer<String, String>)null, true);
+		return cvarString(name, null, 0, null, null, false);
 	}
 	
-	public CvarI64 getCvarBool(String name, boolean initialValue, int flags, ToBoolBooleanBiFunction callback, boolean createIfMissing)
+	private CvarI64 cvarBool(String name, boolean initialValue, int flags, BooleanUnaryOperator transformer, BooleanBiConsumer callback, boolean createIfMissing)
 	{
-		return getCvarI64(name, initialValue ? 1L : 0L, flags, CvarI64.BOOL_TRANSFORMER, callback == null ? null : (n, o) -> callback.apply(n != 0L, o != 0L), createIfMissing);
+		return cvarI64(name, initialValue ? 1L : 0L, flags, transformer == null ? CvarI64.BOOL_TRANSFORMER
+				: CvarI64.BOOL_TRANSFORMER.andThen(v -> transformer.applyAsBool(v != 0L) ? 1L : 0L),
+				callback == null ? null : (n, o) -> callback.accept(n != 0L, o != 0L), createIfMissing);
 	}
 	
-	public CvarI64 getCvarBool(String name, boolean initialValue, int flags, ToBoolBooleanBiFunction callback)
+	public CvarI64 cvarBool(String name, boolean initialValue, int flags, BooleanUnaryOperator transformer, BooleanBiConsumer callback)
 	{
-		return getCvarBool(name, initialValue, flags, callback, true);
+		return cvarBool(name, initialValue, flags, transformer, callback, true);
 	}
 	
-	public CvarI64 getCvarBoolC(String name, boolean initialValue, int flags, BooleanBiConsumer callback, boolean createIfMissing)
+	public CvarI64 cvarBool(String name, boolean initialValue, int flags, BooleanUnaryOperator transformer)
 	{
-		return getCvarI64(name, initialValue ? 1L : 0L, flags, CvarI64.BOOL_TRANSFORMER, callback == null ? null : (n, o) ->
-		{
-			callback.accept(n != 0L, o != 0L);
-			return true;
-		}, createIfMissing);
+		return cvarBool(name, initialValue, flags, transformer, null, true);
 	}
 	
-	public CvarI64 getCvarBoolC(String name, boolean initialValue, int flags, BooleanBiConsumer callback)
+	public CvarI64 cvarBool(String name, boolean initialValue, int flags)
 	{
-		return getCvarBoolC(name, initialValue, flags, callback, true);
+		return cvarBool(name, initialValue, flags, null, null, true);
 	}
 	
-	public CvarI64 getCvarBool(String name, boolean initialValue, int flags)
+	public Optional<CvarI64> cvarBool(String name)
 	{
-		return getCvarBool(name, initialValue, flags, null, true);
+		return Optional.ofNullable(cvarBool(name, false, 0, null, null, false));
 	}
 	
 	@SuppressWarnings("unchecked")
-	public <T extends Enum<T>> CvarEnum<T> getCvarEnum(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, ToBoolBiFunction<T, T> callback, boolean createIfMissing)
+	private <T extends Enum<T>> CvarEnum<T> cvarEnum(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, BiConsumer<T, T> callback, boolean createIfMissing)
 	{
 		name = name.toLowerCase();
 		
@@ -320,10 +350,10 @@ public class CvarRegistry
 			
 			if(existing != null)
 			{
-				if(existing.getType() == Cvar.Type.STRING) return null;
+				if(existing.type() == Cvar.Type.STRING) return null;
 				
 				CvarEnum<?> e = (CvarEnum<?>)existing;
-				return e.getEnumType() == enumType ? (CvarEnum<T>)e : null;
+				return enumType == CvarEnum.ANY_TYPE || e.enumType() == enumType ? (CvarEnum<T>)e : null;
 			}
 			else if(!createIfMissing) return null;
 			
@@ -331,7 +361,7 @@ public class CvarRegistry
 			
 			if(result.testFlag(Cvar.Flags.CONFIG))
 			{
-				String cached = getCached(name);
+				String cached = cached(name);
 				if(cached != null) result.setString(cached, true);
 			}
 			
@@ -341,45 +371,39 @@ public class CvarRegistry
 		}
 	}
 	
-	public <T extends Enum<T>> CvarEnum<T> getCvarEnumC(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, BiConsumer<T, T> callback, boolean createIfMissing)
+	public <T extends Enum<T>> CvarEnum<T> cvarEnum(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, BiConsumer<T, T> callback)
 	{
-		return getCvarEnum(enumType, name, initialValue, flags, transformer, callback == null ? null : (n, o) ->
-		{
-			callback.accept(n, o);
-			return true;
-		}, createIfMissing);
+		return cvarEnum(enumType, name, initialValue, flags, transformer, callback, true);
 	}
 	
-	public <T extends Enum<T>> CvarEnum<T> getCvarEnum(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, ToBoolBiFunction<T, T> callback)
+	public <T extends Enum<T>> CvarEnum<T> cvarEnum(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer)
 	{
-		return getCvarEnum(enumType, name, initialValue, flags, transformer, callback, true);
+		return cvarEnum(enumType, name, initialValue, flags, transformer, null, true);
 	}
 	
-	public <T extends Enum<T>> CvarEnum<T> getCvarEnumC(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer, BiConsumer<T, T> callback)
+	public <T extends Enum<T>> CvarEnum<T> cvarEnum(Class<T> enumType, String name, T initialValue, int flags)
 	{
-		return getCvarEnumC(enumType, name, initialValue, flags, transformer, callback, true);
+		return cvarEnum(enumType, name, initialValue, flags, null, null, true);
 	}
 	
-	public <T extends Enum<T>> CvarEnum<T> getCvarEnum(Class<T> enumType, String name, T initialValue, int flags, Function<T, T> transformer)
+	public <T extends Enum<T>> Optional<CvarEnum<T>> cvarEnum(Class<T> enumType, String name)
 	{
-		return getCvarEnumC(enumType, name, initialValue, flags, transformer, (BiConsumer<T, T>)null, true);
+		return Optional.ofNullable(cvarEnum(enumType, name, null, 0, null, null, false));
 	}
 	
-	public Cvar getCvar(String name)
+	public Optional<Cvar> get(String name)
 	{
-		return cvars.get(name.toLowerCase());
+		return Optional.ofNullable(cvars.get(name.toLowerCase()));
 	}
 	
 	public SetResult set(String name, String value)
 	{
-		Cvar cvar = getCvar(name);
-		return cvar == null ? SetResult.NOT_FOUND : cvar.setString(value);
+		return get(name).map(c -> c.setString(value)).orElse(SetResult.NOT_FOUND);
 	}
 	
-	public Cvar.Type getType(String name)
+	public Cvar.Type typeOf(String name)
 	{
-		Cvar cvar = getCvar(name);
-		return cvar == null ? Cvar.Type.NONE : cvar.getType();
+		return get(name).map(Cvar::type).orElse(Cvar.Type.NONE);
 	}
 	
 	void resetCheats()
@@ -393,7 +417,7 @@ public class CvarRegistry
 		}
 	}
 	
-	public Console getConsole()
+	public Console console()
 	{
 		return console;
 	}

@@ -9,6 +9,7 @@ import java.util.function.DoubleConsumer;
 
 import info.kuonteje.voxeltest.console.Cvar;
 import info.kuonteje.voxeltest.console.CvarF64;
+import info.kuonteje.voxeltest.util.MathUtil;
 
 public class Ticks
 {
@@ -24,19 +25,19 @@ public class Ticks
 	
 	private static AtomicBoolean recalc = new AtomicBoolean(true);
 	
-	public static final CvarF64 tickrate = VoxelTest.CONSOLE.cvars().getCvarF64C("tickrate", 32.0, Cvar.Flags.CONFIG, null, (n, o) -> recalc.setRelease(true));
+	public static final CvarF64 eTickrate = VoxelTest.CONSOLE.cvars().cvarF64("e_tickrate", 32.0, Cvar.Flags.CONFIG, null, (n, o) -> recalc.setRelease(true));
 	
-	private static volatile double cTickrate;
+	private static volatile double tickrate;
 	private static volatile double targetTickLength;
 	private static volatile long targetTickLengthNanos;
 	
 	private static void recalc()
 	{
-		cTickrate = tickrate.get();
-		targetTickLength = 1.0 / cTickrate;
+		tickrate = eTickrate.get();
+		targetTickLength = 1.0 / tickrate;
 		targetTickLengthNanos = (long)(targetTickLength * 1000000000.0);
 		
-		System.out.println("Target tick length " + ms(targetTickLength) + " ms for " + cTickrate + " tps");
+		System.out.println("Target tick length " + ms(targetTickLength) + " ms for " + tickrate + " tps");
 	}
 	
 	private static Thread theThread;
@@ -166,22 +167,22 @@ public class Ticks
 	
 	private static double ms(double seconds)
 	{
-		return Math.round(seconds * 100000.0) / 100.0;
+		return MathUtil.roundDisplay(seconds * 1000.0);
 	}
 	
-	public static double getTickrate()
+	public static double tickrate()
 	{
-		return cTickrate;
+		return tickrate;
 	}
 	
-	public static double getTickLength()
+	public static double tickLength()
 	{
 		return targetTickLength;
 	}
 	
 	public static int secondsToTicks(double seconds)
 	{
-		return (int)Math.ceil(seconds * cTickrate);
+		return (int)Math.ceil(seconds * tickrate);
 	}
 	
 	public static double lastTickTime()

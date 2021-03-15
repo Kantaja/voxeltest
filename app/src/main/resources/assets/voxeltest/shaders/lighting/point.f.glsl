@@ -5,11 +5,11 @@ uniform struct {
 } lightData;
 
 void main() {
-	vec4 albedoTexel = texture(albedo, uv);
-	vec3 diff = lightData.position - texture(position, uv).xyz;
+	vec4 albedoTexel = getAlbedo();
+	vec3 diff = lightData.position - getPosition();
 
 	float distance = length(diff);
 	float intensity = lightData.attenuation.x / (lightData.attenuation.y + distance * lightData.attenuation.z + distance * distance * lightData.attenuation.w);
 
-	color.xyz = vec3(albedoTexel.xyz * max(dot(texture(normal, uv).xyz, normalize(diff)), 0.0) * lightData.color * intensity);
+	color.xyz = albedoTexel.xyz * max(dot(getNormal(), normalize(diff)), 0.0) * lightData.color * intensity;
 }

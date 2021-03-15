@@ -1,92 +1,103 @@
 package info.kuonteje.voxeltest.console;
 
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongUnaryOperator;
+
 import info.kuonteje.voxeltest.console.CvarRegistry.SetResult;
-import info.kuonteje.voxeltest.util.functional.ToBoolLongBiFunction;
-import it.unimi.dsi.fastutil.longs.Long2LongFunction;
+import info.kuonteje.voxeltest.util.ConcurrentLazy;
+import info.kuonteje.voxeltest.util.functional.LongBiConsumer;
 
 public final class CvarI64 extends Cvar
 {
-	public static final Long2LongFunction BOOL_TRANSFORMER = v -> v == 0 ? 0 : 1;
+	public static final LongUnaryOperator BOOL_TRANSFORMER = v -> v == 0 ? 0 : 1;
 	
-	private long value;
+	private final AtomicLong value;
 	private final long defaultValue;
 	
-	private final Long2LongFunction transformer;
-	private final ToBoolLongBiFunction callback;
+	private final LongUnaryOperator transformer;
+	private final LongBiConsumer callback;
 	
-	private Long latchValue = null;
+	private final ConcurrentLazy<AtomicLong> latchValue;
 	
-	CvarI64(CvarRegistry registry, String name, long initialValue, int flags, Long2LongFunction transformer, ToBoolLongBiFunction callback)
+	CvarI64(CvarRegistry registry, String name, long initialValue, int flags, LongUnaryOperator transformer, LongBiConsumer callback)
 	{
 		super(registry, name, flags);
 		
-		this.value = this.defaultValue = initialValue;
+		this.value = new AtomicLong(this.defaultValue = initialValue);
 		
 		this.transformer = transformer;
 		this.callback = callback;
+		
+		latchValue = testFlag(Flags.LATCH) ? ConcurrentLazy.of(AtomicLong::new) : null;
 	}
 	
 	@Override
-	public Type getType()
+	public Type type()
 	{
 		return Type.I64;
 	}
 	
-	SetResult set(long value, boolean loading)
+	SetResult update(LongUnaryOperator op, boolean loading)
 	{
 		if(!loading)
 		{
-			if(testFlag(Flags.CHEAT) && !getRegistry().getConsole().cheatsEnabled()) return SetResult.CHEATS_REQUIRED;
+			if(testFlag(Flags.CHEAT) && !registry().console().cheatsEnabled()) return SetResult.CHEATS_REQUIRED;
 			if(testFlag(Flags.READ_ONLY)) return SetResult.READ_ONLY;
 		}
 		
-		synchronized(lock)
+		if(transformer != null) op = op.andThen(transformer);
+		
+		if(loading) this.value.setRelease(op.applyAsLong(defaultValue));
+		else
 		{
-			long previousValue = this.value;
+			AtomicLong target = testFlag(Flags.LATCH) ? latchValue.get() : this.value;
 			
-			if(transformer != null) value = transformer.apply(value);
-			if(!loading && callback != null && !callback.apply(value, previousValue)) return SetResult.CALLBACK_CANCELED;
-			
-			if(loading) this.value = value;
-			else set0(value);
+			if(callback != null)
+			{
+				synchronized(lock)
+				{
+					long o = value.getPlain();
+					long n = op.applyAsLong(o);
+					
+					callback.accept(n, o);
+					
+					target.setRelease(n);
+				}
+			}
+			else target.updateAndGet(op);
 		}
 		
 		return SetResult.I64_SET;
 	}
 	
-	public SetResult set(long value)
+	public SetResult update(LongUnaryOperator op)
 	{
-		return set(value, false);
+		return update(op, false);
 	}
 	
-	private void set0(long value)
+	public SetResult set(long value)
 	{
-		if(testFlag(Flags.LATCH))
-		{
-			synchronized(latchLock)
-			{
-				latchValue = value;
-			}
-		}
-		else this.value = value;
+		return update(v -> value, false);
 	}
 	
 	public long get()
 	{
-		synchronized(lock)
-		{
-			return value;
-		}
+		return value.getAcquire();
 	}
 	
-	public int getAsInt()
+	public int asInt()
 	{
 		return (int)get();
 	}
 	
-	public boolean getAsBool()
+	public boolean asBool()
 	{
 		return get() != 0L;
+	}
+	
+	public void toggleBool()
+	{
+		update(v -> v == 0L ? 1L : 0L, false);
 	}
 	
 	@Override
@@ -94,7 +105,8 @@ public final class CvarI64 extends Cvar
 	{
 		try
 		{
-			return set(Long.parseLong(value), loading);
+			long n = Long.parseLong(value);
+			return update(v -> n, loading);
 		}
 		catch(NullPointerException | NumberFormatException e)
 		{
@@ -121,14 +133,7 @@ public final class CvarI64 extends Cvar
 	
 	public Long latchValue()
 	{
-		if(testFlag(Flags.LATCH))
-		{
-			synchronized(latchLock)
-			{
-				return latchValue;
-			}
-		}
-		else return null;
+		return testFlag(Flags.LATCH) && latchValue.got() ? latchValue.get().getAcquire() : null;
 	}
 	
 	@Override
@@ -141,10 +146,14 @@ public final class CvarI64 extends Cvar
 	@Override
 	public void reset()
 	{
-		synchronized(lock)
+		if(callback != null)
 		{
-			if(callback != null) callback.apply(defaultValue, value);
-			value = defaultValue;
+			synchronized(lock)
+			{
+				callback.accept(defaultValue, value.getPlain());
+			}
 		}
+		
+		value.setRelease(defaultValue);
 	}
 }

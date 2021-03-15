@@ -1,5 +1,7 @@
 package info.kuonteje.voxeltest.world;
 
+import java.util.Optional;
+
 import info.kuonteje.voxeltest.block.Block;
 import info.kuonteje.voxeltest.data.DefaultRegistries;
 import it.unimi.dsi.fastutil.PriorityQueue;
@@ -7,7 +9,7 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayFIFOQueue;
 
 public final class PregenChunk implements IChunk
 {
-	private record PregenOp(int x, int y, int z, Block block) {}
+	private record PregenOp(int x, int y, int z, Block block, int flags, BlockPredicate predicate) {}
 	
 	private final World world;
 	private final ChunkPosition pos;
@@ -24,52 +26,52 @@ public final class PregenChunk implements IChunk
 	}
 	
 	@Override
-	public World getWorld()
+	public World world()
 	{
 		return world;
 	}
 	
 	@Override
-	public ChunkPosition getPos()
+	public ChunkPosition pos()
 	{
 		return pos;
 	}
 	
 	@Override
-	public void setBlockIdx(int x, int y, int z, int idx)
+	public void setBlockIdx(int x, int y, int z, int idx, int flags, BlockPredicate predicate)
 	{
 		synchronized(lock)
 		{
-			if(applied == null) ops.enqueue(new PregenOp(x, y, z, DefaultRegistries.BLOCKS.getByIdx(idx)));
-			else applied.setBlockIdx(x, y, z, idx);
+			if(applied == null) ops.enqueue(new PregenOp(x, y, z, DefaultRegistries.BLOCKS.byIdxRaw(idx), flags & SetFlags.ALL, predicate));
+			else applied.setBlockIdx(x, y, z, idx, flags, predicate);
 		}
 	}
 	
 	@Override
-	public void setBlock(int x, int y, int z, Block block)
+	public void setBlock(int x, int y, int z, Block block, int flags, BlockPredicate predicate)
 	{
 		synchronized(lock)
 		{
-			if(applied == null) ops.enqueue(new PregenOp(x, y, z, block));
-			else applied.setBlock(x, y, z, block);
+			if(applied == null) ops.enqueue(new PregenOp(x, y, z, block, flags & SetFlags.ALL, predicate));
+			else applied.setBlock(x, y, z, block, flags, predicate);
 		}
 	}
 	
 	@Override
-	public int getBlockIdxInternal(int x, int y, int z)
+	public int blockIdxAtInternal(int x, int y, int z)
 	{
 		synchronized(lock)
 		{
-			return applied == null ? 0 : applied.getBlockIdx(x, y, z);
+			return applied == null ? 0 : applied.blockIdxAt(x, y, z);
 		}
 	}
 	
 	@Override
-	public Block getBlock(int x, int y, int z)
+	public Optional<Block> blockAt(int x, int y, int z)
 	{
 		synchronized(lock)
 		{
-			return applied == null ? null : applied.getBlock(x, y, z);
+			return applied == null ? Optional.empty() : applied.blockAt(x, y, z);
 		}
 	}
 	
@@ -89,7 +91,7 @@ public final class PregenChunk implements IChunk
 			while(!ops.isEmpty())
 			{
 				PregenOp op = ops.dequeue();
-				chunk.setBlock(op.x, op.y, op.z, op.block);
+				chunk.setBlock(op.x, op.y, op.z, op.block, op.flags, op.predicate);
 			}
 			
 			ops = null;

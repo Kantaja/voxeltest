@@ -19,12 +19,15 @@ public class ShaderBuffer implements IDestroyable
 	}
 	
 	private final int buffer;
-	private final long size;
+	private long size;
 	
-	private ShaderBuffer(int buffer, long size)
+	private boolean mutable;
+	
+	private ShaderBuffer(int buffer, long size, boolean mutable)
 	{
 		this.buffer = buffer;
 		this.size = size;
+		this.mutable = mutable;
 		
 		VoxelTest.addDestroyable(this);
 	}
@@ -37,6 +40,16 @@ public class ShaderBuffer implements IDestroyable
 	public long size()
 	{
 		return size;
+	}
+	
+	public void resize(long size, int usage)
+	{
+		if(mutable)
+		{
+			glNamedBufferData(buffer, size, usage);
+			this.size = size;
+		}
+		else System.err.println("Tried to resize immutable SSBO");
 	}
 	
 	public void bind(int target)
@@ -72,6 +85,11 @@ public class ShaderBuffer implements IDestroyable
 		
 		glNamedBufferStorage(buffer, size, usage);
 		
-		return new ShaderBuffer(buffer, size);
+		return new ShaderBuffer(buffer, size, false);
+	}
+	
+	public static ShaderBuffer createUninitialized()
+	{
+		return new ShaderBuffer(glCreateBuffers(), 0L, true);
 	}
 }

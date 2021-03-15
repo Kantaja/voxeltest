@@ -10,7 +10,7 @@ import static org.lwjgl.opengl.GL45C.*;
 import java.nio.FloatBuffer;
 import java.util.Random;
 
-import org.joml.Matrix4f;
+import org.joml.Matrix4dc;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.lwjgl.system.MemoryStack;
@@ -21,6 +21,7 @@ import info.kuonteje.voxeltest.console.CvarF64;
 import info.kuonteje.voxeltest.console.CvarI64;
 import info.kuonteje.voxeltest.console.CvarRegistry;
 import info.kuonteje.voxeltest.util.MathUtil;
+import info.kuonteje.voxeltest.util.MiscUtil;
 
 public class AmbientOcclusion
 {
@@ -39,9 +40,9 @@ public class AmbientOcclusion
 		
 		CvarRegistry cvars = VoxelTest.CONSOLE.cvars();
 		
-		rSsaoNoiseSize = cvars.getCvarI64("r_ssao_noise_size", 4L, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, v -> Long.highestOneBit(MathUtil.clamp(v, 2L, 32L)));
+		rSsaoNoiseSize = cvars.cvarI64("r_ssao_noise_size", 4L, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, v -> Long.highestOneBit(MathUtil.clamp(v, 2L, 32L)));
 		
-		int noiseSize = rSsaoNoiseSize.getAsInt();
+		int noiseSize = rSsaoNoiseSize.asInt();
 		Renderer.getTonemapShader().upload("halfNoiseSize", noiseSize / 2);
 		
 		aoNoise = SingleTexture.alloc2D(noiseSize, noiseSize, GL_RGBA16F, 1);
@@ -50,21 +51,21 @@ public class AmbientOcclusion
 		glTextureParameteri(aoNoise.handle(), GL_TEXTURE_WRAP_T, GL_REPEAT);
 		
 		// hangs if GL_DEBUG_OUTPUT is enabled
-		glDisable(GL_DEBUG_OUTPUT);
+		if(Renderer.rDebug.asBool()) glDisable(GL_DEBUG_OUTPUT);
 		aoSamples = generateAoData();
-		glEnable(GL_DEBUG_OUTPUT);
+		if(Renderer.rDebug.asBool()) glEnable(GL_DEBUG_OUTPUT);
 		
-		generateShader.upload("noiseSampler", aoNoise.getBindlessHandle());
-		generateShader.upload("samples", aoSamples.getBindlessHandle());
+		generateShader.upload("noiseSampler", aoNoise.bindlessHandle());
+		generateShader.upload("samples", aoSamples.bindlessHandle());
 		
-		rSsaoSamples = cvars.getCvarI64C("r_ssao_samples", 32L, Cvar.Flags.CONFIG, v -> MathUtil.clamp(v, 8L, 64L), (n, o) -> VoxelTest.addRenderHook(() -> generateShader.uploadU("aoSamples", (int)n)));
-		generateShader.uploadU("aoSamples", rSsaoSamples.getAsInt());
+		rSsaoSamples = cvars.cvarI64("r_ssao_samples", 32L, Cvar.Flags.CONFIG, v -> MathUtil.clamp(v, 8L, 64L), (n, o) -> VoxelTest.addRenderHook(() -> generateShader.uploadU("aoSamples", (int)n)));
+		generateShader.uploadU("aoSamples", rSsaoSamples.asInt());
 		
-		rSsaoRadius = cvars.getCvarF64C("r_ssao_radius", 1.5, Cvar.Flags.CONFIG, v -> Math.max(v, 0.01), (n, o) -> VoxelTest.addRenderHook(() -> generateShader.upload("aoRadius", (float)n)));
-		generateShader.upload("aoRadius", rSsaoRadius.getAsFloat());
+		rSsaoRadius = cvars.cvarF64("r_ssao_radius", 1.5, Cvar.Flags.CONFIG, v -> Math.max(v, 0.01), (n, o) -> VoxelTest.addRenderHook(() -> generateShader.upload("aoRadius", (float)n)));
+		generateShader.upload("aoRadius", rSsaoRadius.asFloat());
 		
-		rSsaoStrength = cvars.getCvarF64C("r_ssao_strength", 1.2, Cvar.Flags.CONFIG, v -> MathUtil.clamp(v, 0.01, 4.0), (n, o) -> VoxelTest.addRenderHook(() -> generateShader.upload("aoStrength", (float)n)));
-		generateShader.upload("aoStrength", rSsaoStrength.getAsFloat());
+		rSsaoStrength = cvars.cvarF64("r_ssao_strength", 1.2, Cvar.Flags.CONFIG, v -> MathUtil.clamp(v, 0.01, 4.0), (n, o) -> VoxelTest.addRenderHook(() -> generateShader.upload("aoStrength", (float)n)));
+		generateShader.upload("aoStrength", rSsaoStrength.asFloat());
 	}
 	
 	public static void init()
@@ -74,11 +75,11 @@ public class AmbientOcclusion
 	
 	private static SingleTexture generateAoData()
 	{
-		Random random = new Random();
+		Random random = MiscUtil.randomGenerator();
 		
 		try(MemoryStack stack = MemoryStack.stackPush())
 		{
-			int noiseSize = rSsaoNoiseSize.getAsInt();
+			int noiseSize = rSsaoNoiseSize.asInt();
 			
 			FloatBuffer noise = stack.callocFloat(noiseSize * noiseSize * 3);
 			
@@ -133,22 +134,28 @@ public class AmbientOcclusion
 		
 		if(generate != null) generate.destroy();
 		generate = new ForwardFramebuffer(null, width, height, true);
+		
+		try(MemoryStack stack = MemoryStack.stackPush())
+		{
+			FloatBuffer buf = stack.floats(1.0F, 0.0F, 0.0F, 1.0F);
+			glClearNamedFramebufferfv(generate.handle(), GL_COLOR, 0, buf);
+		}
 	}
 	
-	static void uploadMatrices(Matrix4f projection, Matrix4f view)
+	static void uploadMatrices(Matrix4dc projection, Matrix4dc view)
 	{
 		generateShader.upload("projection", projection);
 		generateShader.upload("view", view);
 	}
 	
-	public static TextureHandle<SingleTexture> getGeneratedTexture()
+	public static TextureHandle<SingleTexture> generatedTexture()
 	{
-		return generate.getColorTexture().getBindlessHandle();
+		return generate.colorTexture().bindlessHandle();
 	}
 	
 	static void generate()
 	{
-		if(Renderer.rSsao.getAsBool())
+		if(Renderer.rSsao.asBool())
 		{
 			generate.bind();
 			generateShader.bind();

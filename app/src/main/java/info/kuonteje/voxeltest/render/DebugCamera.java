@@ -5,7 +5,8 @@ import static info.kuonteje.voxeltest.ConstantConfig.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import org.joml.Matrix4f;
+import org.joml.Matrix4d;
+import org.joml.Matrix4dc;
 import org.joml.Vector2d;
 import org.joml.Vector3d;
 
@@ -21,30 +22,28 @@ public class DebugCamera implements Ticks.ITickHandler
 {
 	private static final double RAD90 = Math.PI / 2.0;
 	
-	private static CvarF64 moveSpeed = VoxelTest.CONSOLE.cvars().getCvarF64("move_speed", 12.0, Cvar.Flags.CHEAT, null);
-	private static CvarF64 walkMult = VoxelTest.CONSOLE.cvars().getCvarF64("walk_mult", 0.3, Cvar.Flags.CHEAT, null);
-	private static CvarF64 sprintMult = VoxelTest.CONSOLE.cvars().getCvarF64("sprint_mult", 3.0, Cvar.Flags.CHEAT, null);
+	private static CvarF64 moveSpeed = VoxelTest.CONSOLE.cvars().cvarF64("move_speed", 12.0, Cvar.Flags.CHEAT, null);
+	private static CvarF64 walkMult = VoxelTest.CONSOLE.cvars().cvarF64("walk_mult", 0.3, Cvar.Flags.CHEAT, null);
+	private static CvarF64 sprintMult = VoxelTest.CONSOLE.cvars().cvarF64("sprint_mult", 3.0, Cvar.Flags.CHEAT, null);
 	
-	private static CvarI64 mInvertY = VoxelTest.CONSOLE.cvars().getCvarBool("m_invert_y", false, Cvar.Flags.CONFIG);
+	private static CvarI64 mInvertY = VoxelTest.CONSOLE.cvars().cvarBool("m_invert_y", false, Cvar.Flags.CONFIG, null);
 	
 	private static CvarF64 mYaw, mPitch, sensitivity;
 	private static double yaw, pitch;
 	
 	static
 	{
-		mYaw = VoxelTest.CONSOLE.cvars().getCvarF64C("m_yaw", 0.022, Cvar.Flags.CONFIG, null, (n, o) -> recalc());
-		mPitch = VoxelTest.CONSOLE.cvars().getCvarF64C("m_pitch", 0.022, Cvar.Flags.CONFIG, null, (n, o) -> recalc());
-		sensitivity = VoxelTest.CONSOLE.cvars().getCvarF64C("sensitivity", 2.25, Cvar.Flags.CONFIG, null, (n, o) -> recalc());
+		mYaw = VoxelTest.CONSOLE.cvars().cvarF64("m_yaw", 0.022, Cvar.Flags.CONFIG, null, (n, o) -> recalc(sensitivity.get(), n, mPitch.get()));
+		mPitch = VoxelTest.CONSOLE.cvars().cvarF64("m_pitch", 0.022, Cvar.Flags.CONFIG, null, (n, o) -> recalc(sensitivity.get(), mYaw.get(), n));
+		sensitivity = VoxelTest.CONSOLE.cvars().cvarF64("sensitivity", 2.25, Cvar.Flags.CONFIG, null, (n, o) -> recalc(n, mYaw.get(), mPitch.get()));
 		
-		recalc();
+		recalc(sensitivity.get(), mYaw.get(), mPitch.get());
 	}
 	
-	private static void recalc()
+	private static void recalc(double sens, double yawFactor, double pitchFactor)
 	{
-		double s = sensitivity.get();
-		
-		yaw = Math.toRadians(s * mYaw.get());
-		pitch = Math.toRadians(s * mPitch.get());
+		yaw = Math.toRadians(sens * yawFactor);
+		pitch = Math.toRadians(sens * pitchFactor);
 	}
 	
 	private final Int2BooleanFunction keyFunc;
@@ -55,7 +54,7 @@ public class DebugCamera implements Ticks.ITickHandler
 	private final Vector3d position = new Vector3d(0.0, 96.0, 0.0);
 	private final Vector3d rotation = new Vector3d();
 	
-	private final Matrix4f view = new Matrix4f();
+	private final Matrix4d view = new Matrix4d();
 	
 	private boolean requiresViewUpdate = true;
 	
@@ -80,12 +79,14 @@ public class DebugCamera implements Ticks.ITickHandler
 		Ticks.addTickHandler(this);
 	}
 	
+	private final Vector2d mouseBuf = new Vector2d();
+	
 	public void frame(double delta)
 	{
-		Vector2d mouse = mouseFunc.apply(new Vector2d());
+		Vector2d mouse = mouseFunc.apply(mouseBuf);
 		
 		double newRotX = yaw * (prevMouse.x - mouse.x);
-		double newRotY = pitch * (prevMouse.y - mouse.y) * (mInvertY.getAsBool() ? -1.0 : 1.0);
+		double newRotY = pitch * (prevMouse.y - mouse.y) * (mInvertY.asBool() ? -1.0 : 1.0);
 		
 		if(ticksSinceMove.get() <= 1 || newRotY != 0.0 || newRotX != 0.0)
 		{
@@ -99,9 +100,9 @@ public class DebugCamera implements Ticks.ITickHandler
 				
 				prevMouse.set(mouse);
 				
-				MathUtil.lerp(prevTickPosition, position, VoxelTest.getPartialTick(), interpPosition);
+				MathUtil.lerp(prevTickPosition, position, VoxelTest.partialTick(), interpPosition);
 				
-				view.identity().rotateX((float)(-rotation.x)).rotateY((float)(-rotation.y)).translate((float)(-interpPosition.x), (float)(-interpPosition.y), (float)(-interpPosition.z));
+				view.identity().rotateX(-rotation.x).rotateY(-rotation.y).translate(-interpPosition.x, -interpPosition.y, -interpPosition.z);
 				
 				requiresViewUpdate = true;
 				
@@ -165,7 +166,7 @@ public class DebugCamera implements Ticks.ITickHandler
 		return requiresViewUpdate;
 	}
 	
-	public Matrix4f getView()
+	public Matrix4dc view()
 	{
 		return view;
 	}

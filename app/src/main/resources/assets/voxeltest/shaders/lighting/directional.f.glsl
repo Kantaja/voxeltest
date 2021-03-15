@@ -9,6 +9,6 @@ uniform struct {
 } lightData;
 
 void main() {
-	vec4 albedoTexel = texture(albedo, uv);
-	color.xyz = vec3(albedoTexel.xyz * max(dot(texture(normal, uv).xyz, -lightData.direction), 0.0) * lightData.color * lightData.intensity);
+	vec4 albedoTexel = getAlbedo();
+	color.xyz = albedoTexel.xyz * max(dot(getNormal(), -lightData.direction), 0.0) * lightData.color * lightData.intensity;
 }

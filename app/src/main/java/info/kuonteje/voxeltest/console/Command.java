@@ -34,12 +34,12 @@ public class Command
 		this.predicate = predicate;
 	}
 	
-	public String getName()
+	public String name()
 	{
 		return name;
 	}
 	
-	public int getFlags()
+	public int flags()
 	{
 		return flags;
 	}

@@ -13,11 +13,11 @@ uniform float aoStrength;
 const float zFar = 0.0;
 
 void main() {
-	if(texture(depth, uv).x > zFar) {
+	if(getDepth() > zFar) {
 		vec3 noise = texture(noiseSampler, uv * noiseScale).xyz;
 
-		vec3 pos = (view * vec4(texture(position, uv).xyz, 1.0)).xyz;
-		vec3 norm = (view * vec4(texture(normal, uv).xyz, 0.0)).xyz;
+		vec3 pos = (view * vec4(getPosition(), 1.0)).xyz;
+		vec3 norm = (view * vec4(getNormal(), 0.0)).xyz;
 
 		vec3 tangent = normalize(noise - norm * dot(noise, norm));
 
@@ -33,9 +33,9 @@ void main() {
 			vec3 samplePos = pos + (tangentToView * texelFetch(samples, i).xyz) * aoRadius;
 
 			vec4 offset = projection * vec4(samplePos, 1.0);
-			float depth = (view * vec4(texture(position, (offset.xy / offset.w) * 0.5 + 0.5).xyz, 1.0)).z;
+			float d = (view * vec4(texture(position, (offset.xy / offset.w) * 0.5 + 0.5).xyz, 1.0)).z;
 
-			occlusion += ((depth >= samplePos.z + 0.025) ? 1.0 : 0.0) * smoothstep(0.0, 1.0, aoRadius / abs(samplePos.z - depth));
+			occlusion += ((d >= samplePos.z + 0.025) ? 1.0 : 0.0) * smoothstep(0.0, 1.0, aoRadius / abs(samplePos.z - d));
 		}
 
 		color = vec4(1.0 - min((occlusion * aoStrength) / float(aoSamples), 1.0), 0.0, 0.0, 1.0);

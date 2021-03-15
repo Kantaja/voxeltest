@@ -2,9 +2,10 @@ package info.kuonteje.voxeltest.render;
 
 public enum TonemapOperator
 {
-	UC2(0),
-	ACES(1),
-	REINHARD(2);
+	CLAMP(0),
+	UC2(1),
+	ACES(2),
+	REINHARD(3);
 	
 	private final int id;
 	
@@ -13,7 +14,7 @@ public enum TonemapOperator
 		this.id = id;
 	}
 	
-	public int getId()
+	public int id()
 	{
 		return id;
 	}

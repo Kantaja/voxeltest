@@ -8,9 +8,9 @@ import static org.lwjgl.opengl.GL30C.*;
 import static org.lwjgl.opengl.GL45C.*;
 
 import info.kuonteje.voxeltest.VoxelTest;
-import info.kuonteje.voxeltest.assets.AssetType;
 import info.kuonteje.voxeltest.assets.TextureLoader;
 import info.kuonteje.voxeltest.data.EntryId;
+import info.kuonteje.voxeltest.data.objects.AssetTypes;
 import info.kuonteje.voxeltest.util.Lazy;
 import info.kuonteje.voxeltest.util.LazyInt;
 
@@ -38,7 +38,7 @@ public class TextureArray implements ITexture<TextureArray>
 		this.height = height;
 		this.layers = layers;
 		
-		mipmap = TextureLoader.rMipmap.getAsBool();
+		mipmap = TextureLoader.rMipmap.asBool();
 		
 		glTextureParameteri(array, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTextureParameteri(array, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -58,10 +58,10 @@ public class TextureArray implements ITexture<TextureArray>
 	public void addTexture(int layer, EntryId textureId, ITextureProvider provider)
 	{
 		if(finalized) throw new RuntimeException("Failed to add asset \"" + textureId.toString() + "\" of type " +
-				AssetType.TEXTURE.toString() + " to texture array on layer " + layer + ": array already finalized");
+				AssetTypes.TEXTURE.id().toString() + " to texture array on layer " + layer + ": array already finalized");
 		
 		if(layer >= layers) throw new RuntimeException("Failed to add asset \"" + textureId.toString() + "\" of type " +
-				AssetType.TEXTURE.toString() + " to texture array on layer " + layer + ": layer out of range [0," + (layers - 1) + ")");
+				AssetTypes.TEXTURE.id().toString() + " to texture array on layer " + layer + ": layer out of range [0," + (layers - 1) + ")");
 		
 		if(provider == null) provider = TextureLoader.DEFAULT_PROVIDER;
 		
@@ -73,13 +73,13 @@ public class TextureArray implements ITexture<TextureArray>
 		}
 		catch(Exception e)
 		{
-			throw new RuntimeException("Failed to add asset \"" + textureId.toString() + "\" of type " + AssetType.TEXTURE.toString() + " to texture array on layer " + layer, e);
+			throw new RuntimeException("Failed to add asset \"" + textureId.toString() + "\" of type " + AssetTypes.TEXTURE.id().toString() + " to texture array on layer " + layer, e);
 		}
 		
 		try
 		{
 			if(width != data.width() || height != data.height()) throw new RuntimeException("Failed to add asset \"" + textureId.toString() + "\" of type " +
-					AssetType.TEXTURE.toString() + " to texture array on layer " + layer + ": dimensions do not match (object " +
+					AssetTypes.TEXTURE.id().toString() + " to texture array on layer " + layer + ": dimensions do not match (object " +
 					data.width() + "x" + data.height() + ", array " + width + "x" + height + ")");
 			
 			glTextureSubImage3D(texture.handle(), 0, 0, 0, layer, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
@@ -109,7 +109,7 @@ public class TextureArray implements ITexture<TextureArray>
 	}
 	
 	@Override
-	public TextureHandle<TextureArray> getBindlessHandle(boolean makeResident)
+	public TextureHandle<TextureArray> bindlessHandle(boolean makeResident)
 	{
 		TextureHandle<TextureArray> handle = bindlessHandle.get();
 		return makeResident ? handle.makeResident() : handle;

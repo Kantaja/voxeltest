@@ -17,12 +17,12 @@ public class BlockTextures
 	
 	static
 	{
-		rBlockTextureSize = VoxelTest.CONSOLE.cvars().getCvarI64("r_block_texture_size", 16L, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, v -> Long.highestOneBit(Math.max(0L, v)));
+		rBlockTextureSize = VoxelTest.CONSOLE.cvars().cvarI64("r_block_texture_size", 16L, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, v -> Long.highestOneBit(Math.max(0L, v)));
 	}
 	
 	public static final Registry<BlockTexture> REGISTRY = DefaultRegistries.BLOCK_TEXTURES;
 	
-	public static final BlockTexture MISSING = REGISTRY.getDefaultValue();
+	public static final BlockTexture MISSING = REGISTRY.defaultValue();
 	
 	public static final BlockTexture STONE = REGISTRY.register(new BlockTexture("stone"));
 	public static final BlockTexture DIRT = REGISTRY.register(new BlockTexture("dirt"));
@@ -34,6 +34,8 @@ public class BlockTextures
 	public static final BlockTexture LOG_SIDE = REGISTRY.register(new BlockTexture("log_side"));
 	public static final BlockTexture LOG_TOP = REGISTRY.register(new BlockTexture("log_top"));
 	public static final BlockTexture LEAVES = REGISTRY.register(new BlockTexture("leaves"));
+	public static final BlockTexture EMERALD_ORE = REGISTRY.register(new BlockTexture("emerald_ore"));
+	public static final BlockTexture GRAVEL = REGISTRY.register(new BlockTexture("gravel"));
 	
 	private static TextureArray array = null;
 	
@@ -41,21 +43,19 @@ public class BlockTextures
 	{
 		REGISTRY.addFreezeCallback(r ->
 		{
-			int blockTextureSize = rBlockTextureSize.getAsInt();
+			int blockTextureSize = rBlockTextureSize.asInt();
 			array = new TextureArray(blockTextureSize, blockTextureSize, r.size());
 			
 			array.addTexture(0, "missing", TextureLoader.MISSING_PROVIDER);
 			
-			for(BlockTexture texture : r)
+			for(BlockTexture texture : r.withoutDefault())
 			{
-				if(texture == MISSING) continue;
-				// would prefer not to have to get idx again
-				array.addTexture(r.getIdx(texture), texture.getTextureId(), null);
+				array.addTexture(texture.idx(), texture.textureId(), null);
 			}
 			
 			array.finalizeArray();
 			
-			TextureHandle<TextureArray> handle = array.getBindlessHandle();
+			TextureHandle<TextureArray> handle = array.bindlessHandle();
 			
 			Renderer.getSolidShader().upload("texSamplers", handle);
 			Renderer.getTranslucentShader().upload("texSamplers", handle);
@@ -63,7 +63,7 @@ public class BlockTextures
 		});
 	}
 	
-	public static TextureArray getArray()
+	public static TextureArray array()
 	{
 		return array;
 	}

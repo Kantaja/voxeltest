@@ -56,31 +56,36 @@ public abstract sealed class Cvar permits CvarI64, CvarF64, CvarString, SealedGe
 	private final int flags;
 	
 	protected final Object lock = new Object();
-	protected final Object latchLock;
 	
 	Cvar(CvarRegistry registry, String name, int flags)
 	{
 		this.registry = registry;
 		
+		if(testFlag(flags, Flags.CHEAT)) flags &= ~Flags.CONFIG;
+		if(!testFlag(flags, Flags.CONFIG)) flags &= ~Flags.LATCH;
+		
 		this.name = name;
 		this.flags = flags & Flags.ALL;
-		
-		latchLock = testFlag(Flags.LATCH) ? new Object() : null;
 	}
 	
-	public abstract Type getType();
+	public abstract Type type();
 	
 	public String name()
 	{
 		return name;
 	}
 	
-	public int getFlags()
+	public int flags()
 	{
 		return flags;
 	}
 	
 	public boolean testFlag(int flag)
+	{
+		return (flags & flag) != 0;
+	}
+	
+	private static boolean testFlag(int flags, int flag)
 	{
 		return (flags & flag) != 0;
 	}
@@ -115,7 +120,7 @@ public abstract sealed class Cvar permits CvarI64, CvarF64, CvarString, SealedGe
 	
 	public abstract void reset();
 	
-	public CvarRegistry getRegistry()
+	public CvarRegistry registry()
 	{
 		return registry;
 	}
@@ -124,7 +129,7 @@ public abstract sealed class Cvar permits CvarI64, CvarF64, CvarString, SealedGe
 	public String toString()
 	{
 		String latch = latchValueAsString();
-		return name + " -> " + asString() + " (default " + defaultValueAsString() + ", flags [" + Flags.toString(getFlags()) +
+		return name + " -> " + asString() + " (default " + defaultValueAsString() + ", flags [" + Flags.toString(flags()) +
 				"]" + (latch != null ? (", latch " + latch) : (testFlag(Cvar.Flags.LATCH) ? ", no latch value" : "")) + ")";
 	}
 }

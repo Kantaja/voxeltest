@@ -6,11 +6,11 @@ public interface ITexture<T extends ITexture<T>> extends IDestroyable
 {
 	int handle();
 	
-	TextureHandle<T> getBindlessHandle(boolean makeResident);
+	TextureHandle<T> bindlessHandle(boolean makeResident);
 	
-	default TextureHandle<T> getBindlessHandle()
+	default TextureHandle<T> bindlessHandle()
 	{
-		return getBindlessHandle(true);
+		return bindlessHandle(true);
 	}
 	
 	int width();

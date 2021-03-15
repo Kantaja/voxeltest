@@ -1,92 +1,125 @@
 package info.kuonteje.voxeltest.console;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import info.kuonteje.voxeltest.console.CvarRegistry.SetResult;
-import info.kuonteje.voxeltest.util.functional.ToBoolBiFunction;
+import info.kuonteje.voxeltest.util.ConcurrentLazy;
+import info.kuonteje.voxeltest.util.Flag;
 
 public final class CvarString extends Cvar
 {
-	private String value;
+	private final AtomicReference<String> value;
 	private final String defaultValue;
 	
 	private final Function<String, String> transformer;
-	private final ToBoolBiFunction<String, String> callback;
+	private final BiConsumer<String, String> callback;
 	
-	private String latchValue = null;
+	private final ConcurrentLazy<AtomicReference<String>> latchValue;
 	
-	CvarString(CvarRegistry registry, String name, String initialValue, int flags, Function<String, String> transformer, ToBoolBiFunction<String, String> callback)
+	CvarString(CvarRegistry registry, String name, String initialValue, int flags, Function<String, String> transformer, BiConsumer<String, String> callback)
 	{
 		super(registry, name, flags);
 		
 		Objects.requireNonNull(initialValue, "initial value cannot be null");
 		
-		this.value = this.defaultValue = initialValue;
+		this.value = new AtomicReference<>(this.defaultValue = initialValue);
 		
 		this.transformer = transformer;
 		this.callback = callback;
+		
+		latchValue = testFlag(Flags.LATCH) ? ConcurrentLazy.of(AtomicReference<String>::new) : null;
 	}
 	
 	@Override
-	public Type getType()
+	public Type type()
 	{
 		return Type.STRING;
 	}
 	
-	SetResult set(String value, boolean loading)
+	SetResult update(Function<String, String> op, boolean loading)
 	{
 		if(!loading)
 		{
-			if(testFlag(Flags.CHEAT) && !getRegistry().getConsole().cheatsEnabled()) return SetResult.CHEATS_REQUIRED;
+			if(testFlag(Flags.CHEAT) && !registry().console().cheatsEnabled()) return SetResult.CHEATS_REQUIRED;
 			if(testFlag(Flags.READ_ONLY)) return SetResult.READ_ONLY;
 		}
 		
-		if(value == null) return SetResult.INVALID_STRING;
+		if(transformer != null) op = op.andThen(transformer);
 		
-		synchronized(lock)
+		if(loading)
 		{
-			String previousValue = this.value;
+			String n = op.apply(defaultValue);
+			if(n == null) return SetResult.INVALID_STRING;
+			value.setRelease(n);
+		}
+		else
+		{
+			AtomicReference<String> target = testFlag(Flags.LATCH) ? latchValue.get() : this.value;
 			
-			if(transformer != null) value = transformer.apply(value);
-			if(!loading && callback != null && !callback.apply(value, previousValue)) return SetResult.CALLBACK_CANCELED;
-			
-			if(loading) this.value = value;
-			else set0(value);
+			if(callback != null)
+			{
+				synchronized(lock)
+				{
+					String o = value.getPlain();
+					String n = op.apply(o);
+					
+					if(n == null) return SetResult.INVALID_STRING;
+					
+					callback.accept(n, o);
+					
+					target.setRelease(n);
+				}
+			}
+			else
+			{
+				final Function<String, String> opf = op;
+				Flag invalid = new Flag();
+				
+				target.updateAndGet(v ->
+				{
+					String n = opf.apply(v);
+					
+					if(n == null)
+					{
+						invalid.set();
+						return v;
+					}
+					else
+					{
+						invalid.clear();
+						return n;
+					}
+				});
+				
+				if(invalid.test()) return SetResult.INVALID_STRING;
+			}
 		}
 		
 		return SetResult.STRING_SET;
 	}
 	
-	public SetResult set(String value)
+	public SetResult update(Function<String, String> op)
 	{
-		return set(value, false);
+		return update(op, false);
 	}
 	
-	private void set0(String value)
+	public SetResult set(String value)
 	{
-		if(testFlag(Flags.LATCH))
-		{
-			synchronized(latchLock)
-			{
-				latchValue = value;
-			}
-		}
-		else this.value = value;
+		return update(v -> value, false);
 	}
 	
 	public String get()
 	{
-		synchronized(lock)
-		{
-			return value;
-		}
+		return value.getAcquire();
 	}
 	
 	@Override
 	SetResult setString(String value, boolean loading)
 	{
-		return set(value, loading);
+		return update(v -> value, loading);
 	}
 	
 	@Override
@@ -108,14 +141,7 @@ public final class CvarString extends Cvar
 	
 	public String latchValue()
 	{
-		if(testFlag(Flags.LATCH))
-		{
-			synchronized(latchLock)
-			{
-				return latchValue;
-			}
-		}
-		else return null;
+		return testFlag(Flags.LATCH) && latchValue.got() ? latchValue.get().getAcquire() : null;
 	}
 	
 	@Override
@@ -128,11 +154,14 @@ public final class CvarString extends Cvar
 	@Override
 	public void reset()
 	{
-		synchronized(lock)
+		if(callback != null)
 		{
-			if(callback != null) callback.apply(defaultValue, value);
-			
-			set0(defaultValue);
+			synchronized(lock)
+			{
+				callback.accept(defaultValue, value.getPlain());
+			}
 		}
+		
+		value.setRelease(defaultValue);
 	}
 }

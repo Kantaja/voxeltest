@@ -3,9 +3,9 @@ package info.kuonteje.voxeltest.render;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
-import org.joml.FrustumIntersection;
 import org.joml.Vector3dc;
 
+import info.kuonteje.voxeltest.util.DoubleFrustum;
 import info.kuonteje.voxeltest.world.Chunk;
 
 public class ChunkRenderable extends Renderable
@@ -35,26 +35,26 @@ public class ChunkRenderable extends Renderable
 				renderShadowFunc = renderer::renderSolidShadow;
 				renderFullFunc = renderer::renderSolidFull;
 				
-				triangleCountFunc = renderer::getSolidTriangles;
+				triangleCountFunc = renderer::solidTriangles;
 			}
 			else
 			{
 				renderGeomFunc = renderer::renderTranslucent;
 				renderFullFunc = renderer::renderTranslucent;
 				
-				triangleCountFunc = renderer::getTranslucentTriangles;
+				triangleCountFunc = renderer::translucentTriangles;
 			}
 		}
 	}
 	
 	@Override
-	public Vector3dc getCenter()
+	public Vector3dc center()
 	{
-		return chunk.getCenter();
+		return chunk.center();
 	}
 	
 	@Override
-	public boolean shouldRender(FrustumIntersection frustum)
+	public boolean shouldRender(DoubleFrustum frustum)
 	{
 		return !chunk.empty() && renderFullFunc != null && triangleCountFunc.getAsInt() > 0 && (frustum == null || chunk.testFrustum(frustum));
 	}

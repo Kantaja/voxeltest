@@ -1,7 +1,12 @@
 const uint textureArrayCount = 16;
 
-layout ( binding = 0) uniform usamplerBuffer texLayerSampler;
-layout ( binding = 1) uniform samplerBuffer tintSampler;
+layout (std430, binding = 0) readonly buffer texLayers {
+	uint texLayerData[];
+};
+
+layout (std430, binding = 1) readonly buffer tints {
+	uint tintData[];
+};
 
 layout (bindless_sampler) uniform sampler2DArray texSamplers[textureArrayCount];
 

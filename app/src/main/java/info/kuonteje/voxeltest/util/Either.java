@@ -18,23 +18,23 @@ public abstract class Either<L, R>
 		return this instanceof Right;
 	}
 	
-	public abstract Optional<L> getLeft();
-	public abstract Optional<R> getRight();
+	public abstract Optional<L> left();
+	public abstract Optional<R> right();
 	
 	public void match(Consumer<L> left, Consumer<R> right)
 	{
-		if(isLeft()) left.accept(getLeft().get());
-		else right.accept(getRight().get());
+		if(isLeft()) left.accept(left().get());
+		else right.accept(right().get());
 	}
 	
 	public Either<L, R> mapToLeft(Function<R, L> func)
 	{
-		return isLeft() ? this : left(func.apply(getRight().get()));
+		return isLeft() ? this : left(func.apply(right().get()));
 	}
 	
 	public Either<L, R> mapToRight(Function<L, R> func)
 	{
-		return isRight() ? this : right(func.apply(getLeft().get()));
+		return isRight() ? this : right(func.apply(left().get()));
 	}
 	
 	public static <L, R> Either<L, R> left(L value)
@@ -57,13 +57,13 @@ public abstract class Either<L, R>
 		}
 		
 		@Override
-		public Optional<L> getLeft()
+		public Optional<L> left()
 		{
 			return value;
 		}
 		
 		@Override
-		public Optional<R> getRight()
+		public Optional<R> right()
 		{
 			return Optional.empty();
 		}
@@ -79,13 +79,13 @@ public abstract class Either<L, R>
 		}
 		
 		@Override
-		public Optional<L> getLeft()
+		public Optional<L> left()
 		{
 			return Optional.empty();
 		}
 		
 		@Override
-		public Optional<R> getRight()
+		public Optional<R> right()
 		{
 			return value;
 		}

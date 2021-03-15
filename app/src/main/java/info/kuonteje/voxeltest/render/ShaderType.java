@@ -23,12 +23,12 @@ public enum ShaderType
 		this.glType = glType;
 	}
 	
-	public String getSuffix()
+	public String suffix()
 	{
 		return suffix;
 	}
 	
-	public int getGlType()
+	public int glType()
 	{
 		return glType;
 	}

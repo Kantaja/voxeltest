@@ -11,10 +11,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.joml.Vector2d;
+import org.joml.Vector2i;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
+
+import info.kuonteje.voxeltest.VoxelTest;
 
 public class Window
 {
@@ -44,8 +47,9 @@ public class Window
 	private final DoubleBuffer bufMouseX = MemoryUtil.memAllocDouble(1);
 	private final DoubleBuffer bufMouseY = MemoryUtil.memAllocDouble(1);
 	
-	private int nwidth, nheight;
-	private int xpos, ypos, width, height;
+	private final Vector2i size = new Vector2i();
+	private final Vector2i windowedSize = new Vector2i();
+	private final Vector2i pos = new Vector2i();
 	
 	private boolean requiresResize = true;
 	
@@ -59,7 +63,7 @@ public class Window
 	
 	private final long window;
 	
-	public Window(String title, int width, int height)
+	public Window(String title, int width, int height, boolean fullscreen)
 	{
 		glfwDefaultWindowHints();
 		
@@ -71,25 +75,40 @@ public class Window
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 		glfwWindowHint(GLFW_MAXIMIZED, GLFW_FALSE);
 		
-		if((window = glfwCreateWindow(width, height, title, NULL, NULL)) == 0) throw new RuntimeException("failed to create window");
+		this.fullscreen = fullscreen;
+		
+		long monitor = NULL;
+		
+		if(fullscreen)
+		{
+			monitor = glfwGetPrimaryMonitor();
+			
+			GLFWVidMode mode = glfwGetVideoMode(monitor);
+			
+			windowedSize.set(width, height);
+			pos.set((mode.width() - width) / 2, (mode.height() - height) / 2);
+			
+			width = mode.width();
+			height = mode.height();
+		}
+		
+		if((window = glfwCreateWindow(width, height, title, monitor, NULL)) == 0) throw new RuntimeException("failed to create window");
 		
 		try(MemoryStack stack = MemoryStack.stackPush())
 		{
 			IntBuffer bwidth = stack.mallocInt(1);
 			IntBuffer bheight = stack.mallocInt(1);
 			
-			glfwGetWindowSize(window, bwidth, bheight);
+			glfwGetFramebufferSize(window, bwidth, bheight);
 			
-			nwidth = bwidth.get(0);
-			nheight = bheight.get(0);
+			size.set(bwidth.get(0), bheight.get(0));
 		}
 		
 		glfwGetCursorPos(window, bufMouseX, bufMouseY);
 		
-		glfwSetWindowSizeCallback(window, (_window, _width, _height) ->
+		glfwSetFramebufferSizeCallback(window, (_window, _width, _height) ->
 		{
-			nwidth = _width;
-			nheight = _height;
+			size.set(_width, _height);
 			requiresResize = true;
 		});
 		
@@ -102,7 +121,18 @@ public class Window
 				boolean alt = (_mods & GLFW_MOD_ALT) != 0;
 				boolean shift = (_mods & GLFW_MOD_SHIFT) != 0;
 				
-				if(pressed && _key == GLFW_KEY_F8) System.gc();
+				if(pressed)
+				{
+					switch(_key)
+					{
+					case GLFW_KEY_F8 -> System.gc();
+					case GLFW_KEY_F9 -> requestClose();
+					case GLFW_KEY_ENTER ->
+					{
+						if(alt) toggleFullscreen();
+					}
+					}
+				}
 				
 				for(int i = 0; i < keyCallbacks.size(); i++)
 				{
@@ -148,7 +178,7 @@ public class Window
 		if(requiresResize)
 		{
 			requiresResize = false;
-			if(resizeCallback != null) resizeCallback.resize(nwidth, nheight);
+			if(resizeCallback != null) resizeCallback.resize(size.x, size.y);
 		}
 		
 		if(requiresSwapIntervalUpdate)
@@ -195,16 +225,21 @@ public class Window
 	
 	public void toggleFullscreen()
 	{
+		VoxelTest.clFullscreen.toggleBool();
+	}
+	
+	public void toggleFullscreen0()
+	{
 		if(fullscreen)
 		{
-			glfwSetWindowMonitor(window, 0, xpos, ypos, width, height, GLFW_DONT_CARE);
+			glfwSetWindowMonitor(window, NULL, pos.x, pos.y, windowedSize.x, windowedSize.y, GLFW_DONT_CARE);
 			fullscreen = false;
 		}
 		else
 		{
 			long monitor = glfwGetPrimaryMonitor();
 			
-			if(monitor != 0)
+			if(monitor != NULL)
 			{
 				GLFWVidMode mode = glfwGetVideoMode(monitor);
 				
@@ -215,12 +250,10 @@ public class Window
 					
 					glfwGetWindowPos(window, bufWindowXPos, bufWindowYPos);
 					
-					xpos = bufWindowXPos.get(0);
-					ypos = bufWindowYPos.get(0);
+					pos.set(bufWindowXPos.get(0), bufWindowYPos.get(0));
 				}
 				
-				width = nwidth;
-				height = nheight;
+				windowedSize.set(size);
 				
 				glfwSetWindowMonitor(window, monitor, 0, 0, mode.width(), mode.height(), mode.refreshRate());
 				
@@ -262,14 +295,20 @@ public class Window
 		}
 	}
 	
-	public int getWidth()
+	public void setSize(int width, int height)
 	{
-		return nwidth;
+		if(fullscreen) windowedSize.set(width, height);
+		else glfwSetWindowSize(window, width, height);
 	}
 	
-	public int getHeight()
+	public int width()
 	{
-		return nheight;
+		return size.x;
+	}
+	
+	public int height()
+	{
+		return size.y;
 	}
 	
 	public long handle()

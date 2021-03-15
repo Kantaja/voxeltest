@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
@@ -32,14 +33,14 @@ public class Console
 	
 	private final Path configPath;
 	
+	private final Object2ObjectMap<String, Command> commands = new Object2ObjectOpenHashMap<>();
+	
 	private final CvarRegistry cvars = new CvarRegistry(this);
 	
-	private final CvarI64 svCheats = cvars.getCvarBoolC("sv_cheats", false, Cvar.Flags.SYNC, (n, o) ->
+	private final CvarI64 svCheats = cvars.cvarBool("sv_cheats", false, Cvar.Flags.SYNC, null, (n, o) ->
 	{
 		if(n != o && !n) cvars.resetCheats();
 	});
-	
-	private final Object2ObjectMap<String, Command> commands = new Object2ObjectOpenHashMap<>();
 	
 	public Console(Path configPath)
 	{
@@ -48,14 +49,14 @@ public class Console
 		addCommand("saveconfig", (c, a) -> save(), Command.Flags.IMMUTABLE);
 	}
 	
-	public Path getConfigPath()
+	public Path configPath()
 	{
 		return configPath;
 	}
 	
 	public boolean cheatsEnabled()
 	{
-		return svCheats.getAsBool();
+		return svCheats.asBool();
 	}
 	
 	public CvarRegistry cvars()
@@ -105,11 +106,11 @@ public class Console
 		}
 		else if(line.size() == 1)
 		{
-			Cvar cvar = cvars.getCvar(commandName);
+			Optional<Cvar> cvar = cvars.get(commandName);
 			
-			if(cvar != null)
+			if(cvar.isPresent())
 			{
-				System.out.println(cvar.toString());
+				System.out.println(cvar.get().toString());
 				return CommandResult.CVAR_PRINTED;
 			}
 			else
@@ -120,7 +121,7 @@ public class Console
 		}
 		else
 		{
-			int cvarErr = cvars.set(commandName, line.get(1)).getIdx();
+			int cvarErr = cvars.set(commandName, line.get(1)).idx();
 			
 			if(cvarErr <= 0)
 			{

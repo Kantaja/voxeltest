@@ -1,5 +1,7 @@
 package info.kuonteje.voxeltest.world;
 
+import java.util.Optional;
+
 import info.kuonteje.voxeltest.block.Block;
 
 public final class EmptyChunk implements IChunk
@@ -12,37 +14,37 @@ public final class EmptyChunk implements IChunk
 	}
 	
 	@Override
-	public World getWorld()
+	public World world()
 	{
 		return world;
 	}
 	
 	@Override
-	public ChunkPosition getPos()
+	public ChunkPosition pos()
 	{
 		return ChunkPosition.ZERO;
 	}
 	
 	@Override
-	public int getBlockIdxInternal(int x, int y, int z)
+	public int blockIdxAtInternal(int x, int y, int z)
 	{
 		return 0;
 	}
 	
 	@Override
-	public Block getBlock(int x, int y, int z)
+	public Optional<Block> blockAt(int x, int y, int z)
 	{
-		return null;
+		return Optional.empty();
 	}
 	
 	@Override
-	public void setBlockIdx(int x, int y, int z, int idx)
+	public void setBlockIdx(int x, int y, int z, int idx, int flags, BlockPredicate predicate)
 	{
 		//
 	}
 	
 	@Override
-	public void setBlock(int x, int y, int z, Block block)
+	public void setBlock(int x, int y, int z, Block block, int flags, BlockPredicate predicate)
 	{
 		//
 	}

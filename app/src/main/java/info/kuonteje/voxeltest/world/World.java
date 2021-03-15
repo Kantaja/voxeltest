@@ -1,23 +1,31 @@
 package info.kuonteje.voxeltest.world;
 
-import java.util.Random;
+import java.util.Optional;
 import java.util.concurrent.Phaser;
 import java.util.function.Consumer;
 
 import info.kuonteje.voxeltest.Ticks;
 import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.block.Block;
+import info.kuonteje.voxeltest.console.Cvar;
+import info.kuonteje.voxeltest.console.CvarI64;
 import info.kuonteje.voxeltest.render.Renderer;
+import info.kuonteje.voxeltest.util.MathUtil;
+import info.kuonteje.voxeltest.util.MiscUtil;
 import info.kuonteje.voxeltest.world.worldgen.GeneratingChunkProvider;
 import info.kuonteje.voxeltest.world.worldgen.TimingChunkProvider;
 import it.unimi.dsi.fastutil.longs.Long2ObjectAVLTreeMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 
 // TODO still some excessive synchronization
-// pregen bug seems to be gone?
-// also configurable worldgen
 public class World implements Ticks.ITickHandler
 {
+	public static final CvarI64 svWorldgenTimer = VoxelTest.CONSOLE.cvars().cvarBool("sv_worldgen_timer", false, Cvar.Flags.CONFIG);
+	
+	// generates full new chunks instead of pregen chunks
+	// TODO infinite loop from feature generators
+	public static final CvarI64 svCascadingWorldgen = VoxelTest.CONSOLE.cvars().cvarBool("sv_cascading_worldgen", false, Cvar.Flags.READ_ONLY);
+	
 	private final long seed;
 	
 	private final IChunk emptyChunk = new EmptyChunk(this);
@@ -28,16 +36,25 @@ public class World implements Ticks.ITickHandler
 	public World(long seed)
 	{
 		this.seed = seed;
-		chunkProvider = new TimingChunkProvider(new GeneratingChunkProvider(this));
+		
+		this.chunkProvider = new GeneratingChunkProvider(this);
+		if(svWorldgenTimer.asBool()) this.chunkProvider = new TimingChunkProvider(this.chunkProvider);
 		
 		initialLoad();
 		
 		VoxelTest.CONSOLE.addCommand("chunkstatus", (c, a) ->
 		{
+			if(a.size() < 4)
+			{
+				System.out.println("chunkstatus <x> <y> <z>");
+				return;
+			}
+			
 			int x = Integer.parseInt(a.get(1));
 			int y = Integer.parseInt(a.get(2));
 			int z = Integer.parseInt(a.get(3));
-			System.out.println("(" + x + ", " + y + ", " + z + ") -> " + getChunkStatus(x, y, z).toString());
+			
+			System.out.println("(" + x + ", " + y + ", " + z + ") -> " + statusOfChunkAt(x, y, z).toString());
 		}, 0);
 		
 		VoxelTest.CONSOLE.addCommand("chunktime", (c, a) ->
@@ -45,14 +62,16 @@ public class World implements Ticks.ITickHandler
 			double totalTime = Chunk.meshTimer.totalTime();
 			int totalMeshes = Chunk.meshTimer.totalOps();
 			
-			System.out.println("Generating " + totalMeshes + " chunk meshes took " + (Math.round(totalTime * 100000.0) / 100.0) +
-					" ms, average " + (Math.round((totalTime / totalMeshes) * 100000.0) / 100.0) + " ms each, " + (Math.round((totalMeshes / totalTime) * 100.0) / 100.0) + " meshes/sec");
+			System.out.println("Generating " + totalMeshes + " chunk meshes took " + MathUtil.roundDisplay(totalTime * 1000.0) +
+					" ms, average " + MathUtil.roundDisplay(totalTime / totalMeshes * 1000.0) +
+					" ms each, " + MathUtil.roundDisplay(totalMeshes / totalTime) / 100.0 + " meshes/sec/thread (" +
+					MathUtil.roundDisplay((totalMeshes * VoxelTest.eWorkers.asInt()) / totalTime) + " meshes/sec)");
 		}, 0);
 	}
 	
 	public World()
 	{
-		this(new Random().nextLong());
+		this(MiscUtil.randomSeed());
 	}
 	
 	private void initialLoad()
@@ -64,14 +83,14 @@ public class World implements Ticks.ITickHandler
 		{
 			for(int z = -8; z < 8; z++)
 			{
-				for(int y = -4; y <= 2; y++)
+				for(int y = -4; y <= 3; y++)
 				{
 					ChunkPosition pos = new ChunkPosition(x, y, z);
 					
 					loadingChunks.register();
 					totalQueuedChunks++;
 					
-					VoxelTest.getThreadPool().execute(() ->
+					VoxelTest.threadPool().execute(() ->
 					{
 						try
 						{
@@ -90,23 +109,23 @@ public class World implements Ticks.ITickHandler
 			}
 		}
 		
-		loadingChunks.arriveAndAwaitAdvance();
-		
 		System.out.println("Queued " + totalQueuedChunks + " chunks for generation");
+		
+		loadingChunks.arriveAndAwaitAdvance();
 		
 		if(chunkProvider instanceof TimingChunkProvider timer)
 		{
 			double totalTime = timer.totalTime();
 			int totalChunks = timer.totalChunks();
 			
-			System.out.println("Generating " + totalChunks + " chunks took " + (Math.round(totalTime * 100000.0) / 100.0) +
-					" ms, average " + (Math.round((totalTime / totalChunks) * 100000.0) / 100.0) + " ms each, " +
-					(Math.round((totalChunks / totalTime) * 100.0) / 100.0) + " chunks/sec/thread (" +
-					(Math.round(((totalChunks * Runtime.getRuntime().availableProcessors()) / totalTime) * 100.0) / 100.0) + " chunks/sec)");
+			System.out.println("Generating " + totalChunks + " chunks took " + MathUtil.roundDisplay(totalTime * 1000.0) +
+					" ms, average " + MathUtil.roundDisplay(totalTime / totalChunks * 1000.0) +
+					" ms each, " + MathUtil.roundDisplay(totalChunks / totalTime) + " chunks/sec/thread (" +
+					MathUtil.roundDisplay((totalChunks * VoxelTest.eWorkers.asInt()) / totalTime) + " chunks/sec)");
 		}
 	}
 	
-	public long getSeed()
+	public long seed()
 	{
 		return seed;
 	}
@@ -144,8 +163,10 @@ public class World implements Ticks.ITickHandler
 		return pregen;
 	}
 	
-	public IChunk getChunk(int x, int y, int z, MissingChunkAction missingAction)
+	public IChunk chunkAt(int x, int y, int z, MissingChunkAction missingAction)
 	{
+		if(!ChunkPosition.isValid(x, y, z)) return emptyChunk;
+		
 		synchronized(chunks)
 		{
 			IChunk chunk = chunks.get(ChunkPosition.key(x, y, z));
@@ -156,18 +177,18 @@ public class World implements Ticks.ITickHandler
 		}
 	}
 	
-	public IChunk getChunkOrPregen(int x, int y, int z)
+	public IChunk chunkOrPregenAt(int x, int y, int z)
 	{
-		return getChunk(x, y, z, MissingChunkAction.GENERATE_PREGEN);
+		return chunkAt(x, y, z, svCascadingWorldgen.asBool() ? MissingChunkAction.GENERATE : MissingChunkAction.GENERATE_PREGEN);
 	}
 	
-	public IChunk getLoadedChunk(int x, int y, int z)
+	public IChunk loadedChunkAt(int x, int y, int z)
 	{
-		IChunk chunk = getChunk(x, y, z, MissingChunkAction.NOTHING);
+		IChunk chunk = chunkAt(x, y, z, MissingChunkAction.NOTHING);
 		return chunk instanceof Chunk c ? c : emptyChunk;
 	}
 	
-	public ChunkStatus getChunkStatus(int x, int y, int z)
+	public ChunkStatus statusOfChunkAt(int x, int y, int z)
 	{
 		synchronized(chunks)
 		{
@@ -184,36 +205,61 @@ public class World implements Ticks.ITickHandler
 		return emptyChunk;
 	}
 	
-	public int getBlockIdx(int x, int y, int z, MissingChunkAction missingAction)
+	public int blockIdxAt(int x, int y, int z, MissingChunkAction missingAction)
 	{
-		IChunk chunk = getChunk(x >> 5, y >> 5, z >> 5, missingAction);
-		return chunk.getBlockIdx(x & 0x1F, y & 0x1F, z & 0x1F);
+		IChunk chunk = chunkAt(x >> 5, y >> 5, z >> 5, missingAction);
+		return chunk.blockIdxAt(x & 0x1F, y & 0x1F, z & 0x1F);
 	}
 	
-	public int getBlockIdx(int x, int y, int z)
+	public int blockIdxAt(int x, int y, int z)
 	{
-		return getBlockIdx(x, y, z, MissingChunkAction.NOTHING);
+		return blockIdxAt(x, y, z, MissingChunkAction.NOTHING);
 	}
 	
-	public Block getBlock(int x, int y, int z, MissingChunkAction missingAction)
+	public Optional<Block> blockAt(int x, int y, int z, MissingChunkAction missingAction)
 	{
-		IChunk chunk = getChunk(x >> 5, y >> 5, z >> 5, missingAction);
-		return chunk.getBlock(x & 0x1F, y & 0x1F, z & 0x1F);
+		IChunk chunk = chunkAt(x >> 5, y >> 5, z >> 5, missingAction);
+		return chunk.blockAt(x & 0x1F, y & 0x1F, z & 0x1F);
 	}
 	
-	public Block getBlock(int x, int y, int z)
+	public Optional<Block> blockAt(int x, int y, int z)
 	{
-		return getBlock(x, y, z, MissingChunkAction.NOTHING);
+		return blockAt(x, y, z, MissingChunkAction.NOTHING);
 	}
 	
-	public void setBlockIdx(int x, int y, int z, int idx)
+	public void setBlockIdx(int x, int y, int z, int idx, int flags, BlockPredicate predicate)
 	{
-		getChunkOrPregen(x >> 5, y >> 5, z >> 5).setBlockIdx(x & 0x1F, y & 0x1F, z & 0x1F, idx);
+		chunkOrPregenAt(x >> 5, y >> 5, z >> 5).setBlockIdx(x & 0x1F, y & 0x1F, z & 0x1F, idx, flags, predicate);
 	}
 	
-	public void setBlock(int x, int y, int z, Block block)
+	public void setBlock(int x, int y, int z, Block block, int flags, BlockPredicate predicate)
 	{
-		getChunkOrPregen(x >> 5, y >> 5, z >> 5).setBlock(x & 0x1F, y & 0x1F, z & 0x1F, block);
+		chunkOrPregenAt(x >> 5, y >> 5, z >> 5).setBlock(x & 0x1F, y & 0x1F, z & 0x1F, block, flags, predicate);
+	}
+	
+	public void setBlockIdx(int x, int y, int z, int idx, int flags)
+	{
+		setBlockIdx(x, y, z, idx, flags, null);
+	}
+	
+	public void setBlock(int x, int y, int z, Block block, int flags)
+	{
+		setBlock(x, y, z, block, flags, null);
+	}
+	
+	public void update(int x, int y, int z)
+	{
+		blockAt(x, y, z).ifPresent(b -> b.update(this, x, y, z));
+	}
+	
+	public void updateAround(int x, int y, int z)
+	{
+		update(x - 1, y, z);
+		update(x + 1, y, z);
+		update(x, y - 1, z);
+		update(x, y + 1, z);
+		update(x, y, z - 1);
+		update(x, y, z + 1);
 	}
 	
 	public void render()

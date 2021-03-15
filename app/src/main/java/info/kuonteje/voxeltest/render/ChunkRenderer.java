@@ -3,7 +3,6 @@ package info.kuonteje.voxeltest.render;
 import static org.lwjgl.opengl.GL11C.*;
 import static org.lwjgl.opengl.GL15C.*;
 import static org.lwjgl.opengl.GL30C.*;
-import static org.lwjgl.opengl.GL31C.*;
 import static org.lwjgl.opengl.GL45C.*;
 import static org.lwjgl.system.MemoryUtil.*;
 
@@ -13,8 +12,8 @@ import java.nio.IntBuffer;
 
 public class ChunkRenderer
 {
-	private static final int TEX_LAYER_TEXTURE_UNIT = 0;
-	private static final int TINT_TEXTURE_UNIT = 1;
+	private static final int TEX_LAYER_BUFFER_BINDING = 0;
+	private static final int TINT_BUFFER_BINDING = 1;
 	
 	private static final int VERTICES_PER_TRIANGLE = 3;
 	private static final int TEX_COORDS_PER_TRIANGLE = 3;
@@ -30,12 +29,11 @@ public class ChunkRenderer
 	
 	private static final int resizeSpace = 512;
 	
-	private int bufferSizeTriangles = 4096;
+	private int bufferSizeTriangles = 0;
 	
 	private final int vao, vertexVbo, texCoordVbo;
-	private final int texLayerVbo, tintVbo;
 	
-	private final SingleTexture texLayerTbo, tintTbo;
+	private final ShaderBuffer texLayerSsbo, tintSsbo;
 	
 	private FloatBuffer vertexBuf, texCoordBuf;
 	private IntBuffer texLayerBuf;
@@ -53,32 +51,31 @@ public class ChunkRenderer
 		vertexVbo = glCreateBuffers();
 		texCoordVbo = glCreateBuffers();
 		
-		texLayerVbo = glCreateBuffers();
-		tintVbo = glCreateBuffers();
-		
-		texLayerTbo = SingleTexture.wrap(0, 0, 0, glCreateTextures(GL_TEXTURE_BUFFER));
-		tintTbo = SingleTexture.wrap(0, 0, 0, glCreateTextures(GL_TEXTURE_BUFFER));
-		
-		glTextureBuffer(texLayerTbo.handle(), GL_R32UI, texLayerVbo);
-		glTextureBuffer(tintTbo.handle(), GL_RGBA8, tintVbo);
+		texLayerSsbo = ShaderBuffer.createUninitialized();
+		tintSsbo = ShaderBuffer.createUninitialized();
 		
 		reallocBuffers();
 		
 		bindVbo(vao, vertexVbo, 0, 3);
 		bindVbo(vao, texCoordVbo, 1, 2);
 		
-		vertexBuf = memAllocFloat(bufferSizeTriangles * VERTICES_PER_TRIANGLE * VERTEX_FLOATS_PER_VERTEX);
-		texCoordBuf = memAllocFloat(bufferSizeTriangles * TEX_COORDS_PER_TRIANGLE * TEX_COORD_FLOATS_PER_VERTEX);
-		texLayerBuf = memAllocInt(bufferSizeTriangles / TRIANGLES_PER_TEX_LAYER * TEX_LAYER_INTS_PER_FACE);
-		tintBuf = memAlloc(bufferSizeTriangles / TRIANGLES_PER_TINT * TINT_BYTES_PER_FACE);
+		//vertexBuf = memAllocFloat(bufferSizeTriangles * VERTICES_PER_TRIANGLE * VERTEX_FLOATS_PER_VERTEX);
+		//texCoordBuf = memAllocFloat(bufferSizeTriangles * TEX_COORDS_PER_TRIANGLE * TEX_COORD_FLOATS_PER_VERTEX);
+		//texLayerBuf = memAllocInt(bufferSizeTriangles / TRIANGLES_PER_TEX_LAYER * TEX_LAYER_INTS_PER_FACE);
+		//tintBuf = memAlloc(bufferSizeTriangles / TRIANGLES_PER_TINT * TINT_BYTES_PER_FACE);
+		
+		vertexBuf = null;
+		texCoordBuf = null;
+		texLayerBuf = null;
+		tintBuf = null;
 	}
 	
 	private void reallocBuffers()
 	{
 		glNamedBufferData(vertexVbo, bufferSizeTriangles * VERTICES_PER_TRIANGLE * VERTEX_FLOATS_PER_VERTEX * Float.BYTES, GL_STREAM_DRAW);
 		glNamedBufferData(texCoordVbo, bufferSizeTriangles * TEX_COORDS_PER_TRIANGLE * TEX_COORD_FLOATS_PER_VERTEX * Float.BYTES, GL_STREAM_DRAW);
-		glNamedBufferData(texLayerVbo, bufferSizeTriangles / TRIANGLES_PER_TEX_LAYER * Integer.BYTES * TEX_LAYER_INTS_PER_FACE, GL_STREAM_DRAW);
-		glNamedBufferData(tintVbo, bufferSizeTriangles / TRIANGLES_PER_TINT * Byte.BYTES * TINT_BYTES_PER_FACE, GL_STREAM_DRAW);
+		texLayerSsbo.resize(bufferSizeTriangles / TRIANGLES_PER_TEX_LAYER * Integer.BYTES * TEX_LAYER_INTS_PER_FACE, GL_STREAM_DRAW);
+		tintSsbo.resize(bufferSizeTriangles / TRIANGLES_PER_TINT * Byte.BYTES * TINT_BYTES_PER_FACE, GL_STREAM_DRAW);
 	}
 	
 	private void bindVbo(int vao, int vbo, int index, int size)
@@ -104,22 +101,22 @@ public class ChunkRenderer
 		}
 	}
 	
-	public FloatBuffer getVertexBuffer()
+	public FloatBuffer vertexBuffer()
 	{
 		return resize ? recreateVertexBuf() : vertexBuf.clear();
 	}
 	
-	public FloatBuffer getTexCoordBuffer()
+	public FloatBuffer texCoordBuffer()
 	{
 		return resize ? recreateTexCoordBuf() : texCoordBuf.clear();
 	}
 	
-	public IntBuffer getTextureLayerBuffer()
+	public IntBuffer textureLayerBuffer()
 	{
 		return resize ? recreateTexLayerBuf() : texLayerBuf.clear();
 	}
 	
-	public ByteBuffer getTintBuffer()
+	public ByteBuffer tintBuffer()
 	{
 		return resize ? recreateTintBuf() : tintBuf.clear();
 	}
@@ -156,8 +153,8 @@ public class ChunkRenderer
 			
 			glNamedBufferSubData(vertexVbo, 0L, vertexBuf);
 			glNamedBufferSubData(texCoordVbo, 0L, texCoordBuf);
-			glNamedBufferSubData(texLayerVbo, 0L, texLayerBuf);
-			glNamedBufferSubData(tintVbo, 0L, tintBuf);
+			glNamedBufferSubData(texLayerSsbo.handle(), 0L, texLayerBuf);
+			glNamedBufferSubData(tintSsbo.handle(), 0L, tintBuf);
 			
 			solidTriangles = nSolidTriangles;
 			translucentTriangles = nTranslucentTriangles;
@@ -175,7 +172,7 @@ public class ChunkRenderer
 	{
 		if(solidTriangles > 0)
 		{
-			texLayerTbo.bind(TEX_LAYER_TEXTURE_UNIT);
+			texLayerSsbo.bind(TEX_LAYER_BUFFER_BINDING);
 			drawSolid();
 		}
 	}
@@ -184,9 +181,8 @@ public class ChunkRenderer
 	{
 		if(solidTriangles > 0)
 		{
-			// These can't be bindless, because creating a handle for a texture prevents it being reallocated
-			texLayerTbo.bind(TEX_LAYER_TEXTURE_UNIT);
-			tintTbo.bind(TINT_TEXTURE_UNIT);
+			texLayerSsbo.bind(TEX_LAYER_BUFFER_BINDING);
+			tintSsbo.bind(TINT_BUFFER_BINDING);
 			
 			drawSolid();
 		}
@@ -202,8 +198,8 @@ public class ChunkRenderer
 	{
 		if(translucentTriangles > 0)
 		{
-			texLayerTbo.bind(TEX_LAYER_TEXTURE_UNIT);
-			tintTbo.bind(TINT_TEXTURE_UNIT);
+			texLayerSsbo.bind(TEX_LAYER_BUFFER_BINDING);
+			tintSsbo.bind(TINT_BUFFER_BINDING);
 			shader.upload("baseTriangleId", solidTriangles);
 			
 			glBindVertexArray(vao);
@@ -211,12 +207,12 @@ public class ChunkRenderer
 		}
 	}
 	
-	public int getSolidTriangles()
+	public int solidTriangles()
 	{
 		return solidTriangles;
 	}
 	
-	public int getTranslucentTriangles()
+	public int translucentTriangles()
 	{
 		return translucentTriangles;
 	}
@@ -231,10 +227,7 @@ public class ChunkRenderer
 		glDeleteBuffers(vertexVbo);
 		glDeleteBuffers(texCoordVbo);
 		
-		glDeleteBuffers(texLayerVbo);
-		glDeleteBuffers(tintVbo);
-		
-		texLayerTbo.destroy();
-		tintTbo.destroy();
+		texLayerSsbo.destroy();
+		tintSsbo.destroy();
 	}
 }

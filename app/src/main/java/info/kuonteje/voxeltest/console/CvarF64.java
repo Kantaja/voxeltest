@@ -1,86 +1,93 @@
 package info.kuonteje.voxeltest.console;
 
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.DoubleUnaryOperator;
+
 import info.kuonteje.voxeltest.console.CvarRegistry.SetResult;
-import info.kuonteje.voxeltest.util.MathUtil;
-import info.kuonteje.voxeltest.util.functional.ToBoolDoubleBiFunction;
-import it.unimi.dsi.fastutil.doubles.Double2DoubleFunction;
+import info.kuonteje.voxeltest.util.ConcurrentLazy;
+import info.kuonteje.voxeltest.util.functional.DoubleBiConsumer;
 
 public final class CvarF64 extends Cvar
 {
-	public static final Double2DoubleFunction ZERO_TO_ONE_TRANSFORMER = v -> MathUtil.clamp(v, 0.0, 1.0);
-	
-	private double value;
+	private final AtomicLong value;
 	private final double defaultValue;
 	
-	private final Double2DoubleFunction transformer;
-	private final ToBoolDoubleBiFunction callback;
+	private final DoubleUnaryOperator transformer;
+	private final DoubleBiConsumer callback;
 	
-	private Double latchValue = null;
+	private final ConcurrentLazy<AtomicLong> latchValue;
 	
-	CvarF64(CvarRegistry registry, String name, double initialValue, int flags, Double2DoubleFunction transformer, ToBoolDoubleBiFunction callback)
+	CvarF64(CvarRegistry registry, String name, double initialValue, int flags, DoubleUnaryOperator transformer, DoubleBiConsumer callback)
 	{
 		super(registry, name, flags);
 		
-		this.value = this.defaultValue = initialValue;
+		this.value = new AtomicLong(Double.doubleToRawLongBits(this.defaultValue = initialValue));
 		
 		this.transformer = transformer;
 		this.callback = callback;
+		
+		latchValue = testFlag(Flags.LATCH) ? ConcurrentLazy.of(AtomicLong::new) : null;
 	}
 	
 	@Override
-	public Type getType()
+	public Type type()
 	{
 		return Type.F64;
 	}
 	
-	SetResult set(double value, boolean loading)
+	SetResult update(DoubleUnaryOperator op, boolean loading)
 	{
 		if(!loading)
 		{
-			if(testFlag(Flags.CHEAT) && !getRegistry().getConsole().cheatsEnabled()) return SetResult.CHEATS_REQUIRED;
+			if(testFlag(Flags.CHEAT) && !registry().console().cheatsEnabled()) return SetResult.CHEATS_REQUIRED;
 			if(testFlag(Flags.READ_ONLY)) return SetResult.READ_ONLY;
 		}
 		
-		synchronized(lock)
+		if(transformer != null) op = op.andThen(transformer);
+		
+		if(loading) this.value.setRelease(Double.doubleToRawLongBits(op.applyAsDouble(defaultValue)));
+		else
 		{
-			double previousValue = this.value;
+			AtomicLong target = testFlag(Flags.LATCH) ? latchValue.get() : this.value;
 			
-			if(transformer != null) value = transformer.apply(value);
-			if(!loading && callback != null && !callback.apply(value, previousValue)) return SetResult.CALLBACK_CANCELED;
-			
-			if(loading) this.value = value;
-			else set0(value);
+			if(callback != null)
+			{
+				synchronized(lock)
+				{
+					double o = value.getPlain();
+					double n = op.applyAsDouble(o);
+					
+					callback.accept(n, o);
+					
+					target.setRelease(Double.doubleToRawLongBits(n));
+				}
+			}
+			else
+			{
+				final DoubleUnaryOperator opf = op;
+				target.updateAndGet(v -> Double.doubleToRawLongBits(opf.applyAsDouble(Double.longBitsToDouble(v))));
+			}
 		}
 		
 		return SetResult.F64_SET;
 	}
 	
-	public SetResult set(double value)
+	public SetResult update(DoubleUnaryOperator op)
 	{
-		return set(value, false);
+		return update(op, false);
 	}
 	
-	private void set0(double value)
+	public SetResult set(double value)
 	{
-		if(testFlag(Flags.LATCH))
-		{
-			synchronized(latchLock)
-			{
-				latchValue = value;
-			}
-		}
-		else this.value = value;
+		return update(v -> value, false);
 	}
 	
 	public double get()
 	{
-		synchronized(lock)
-		{
-			return value;
-		}
+		return Double.longBitsToDouble(value.getAcquire());
 	}
 	
-	public float getAsFloat()
+	public float asFloat()
 	{
 		return (float)get();
 	}
@@ -90,7 +97,8 @@ public final class CvarF64 extends Cvar
 	{
 		try
 		{
-			return set(Double.parseDouble(value), loading);
+			double n = Double.parseDouble(value);
+			return update(v -> n, loading);
 		}
 		catch(NullPointerException | NumberFormatException e)
 		{
@@ -117,14 +125,7 @@ public final class CvarF64 extends Cvar
 	
 	public Double latchValue()
 	{
-		if(testFlag(Flags.LATCH))
-		{
-			synchronized(latchLock)
-			{
-				return latchValue;
-			}
-		}
-		else return null;
+		return testFlag(Flags.LATCH) && latchValue.got() ? Double.longBitsToDouble(latchValue.get().getAcquire()) : null;
 	}
 	
 	@Override
@@ -137,11 +138,14 @@ public final class CvarF64 extends Cvar
 	@Override
 	public void reset()
 	{
-		synchronized(lock)
+		if(callback != null)
 		{
-			if(callback != null) callback.apply(defaultValue, value);
-			
-			set0(defaultValue);
+			synchronized(lock)
+			{
+				callback.accept(defaultValue, value.getPlain());
+			}
 		}
+		
+		value.setRelease(Double.doubleToRawLongBits(defaultValue));
 	}
 }

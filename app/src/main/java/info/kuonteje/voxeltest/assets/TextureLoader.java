@@ -19,6 +19,7 @@ import org.lwjgl.system.MemoryUtil;
 import info.kuonteje.voxeltest.VoxelTest;
 import info.kuonteje.voxeltest.console.Cvar;
 import info.kuonteje.voxeltest.console.CvarI64;
+import info.kuonteje.voxeltest.data.objects.AssetTypes;
 import info.kuonteje.voxeltest.data.objects.BlockTextures;
 import info.kuonteje.voxeltest.render.ITextureProvider;
 import info.kuonteje.voxeltest.render.SingleTexture;
@@ -27,9 +28,9 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 public class TextureLoader
 {
-	public static final CvarI64 rMipmap = VoxelTest.CONSOLE.cvars().getCvarBool("r_mipmap", true, Cvar.Flags.CONFIG | Cvar.Flags.LATCH);
+	public static final CvarI64 rMipmap = VoxelTest.CONSOLE.cvars().cvarBool("r_mipmap", true, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, null);
 	
-	public static final CvarI64 rTextureAnisotropy = VoxelTest.CONSOLE.cvars().getCvarI64("r_texture_anisotropy", 1L, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, v -> MathUtil.clamp(Long.highestOneBit(v), 1L, 16L));
+	public static final CvarI64 rTextureAnisotropy = VoxelTest.CONSOLE.cvars().cvarI64("r_texture_anisotropy", 1L, Cvar.Flags.CONFIG | Cvar.Flags.LATCH, v -> MathUtil.clamp(Long.highestOneBit(v), 1L, 16L));
 	
 	private static final Map<String, SingleTexture> cache = Collections.synchronizedMap(new Object2ObjectOpenHashMap<>());
 	
@@ -37,7 +38,7 @@ public class TextureLoader
 	{
 		BufferedImage image;
 		
-		try(InputStream stream = AssetLoader.getAssetStream(AssetType.TEXTURE, domain, id))
+		try(InputStream stream = AssetLoader.assetStream(AssetTypes.TEXTURE, domain, id))
 		{
 			image = ImageIO.read(stream);
 		}
@@ -68,7 +69,7 @@ public class TextureLoader
 	
 	public static final ITextureProvider MISSING_PROVIDER = (domain, id) ->
 	{
-		int blockTextureSize = BlockTextures.rBlockTextureSize.getAsInt();
+		int blockTextureSize = BlockTextures.rBlockTextureSize.asInt();
 		int halfShift = MathUtil.floorLog2(blockTextureSize) - 1;
 		
 		ByteBuffer buffer = MemoryUtil.memAlloc(blockTextureSize * blockTextureSize * 4);
@@ -110,7 +111,7 @@ public class TextureLoader
 		}
 		catch(Exception e)
 		{
-			throw new RuntimeException("Failed to load asset \"" + domain + ":" + id + "\" of type " + AssetType.TEXTURE.toString(), e);
+			throw new RuntimeException("Failed to load asset \"" + domain + ":" + id + "\" of type " + AssetTypes.TEXTURE.id().toString(), e);
 		}
 		
 		int width, height;
@@ -123,7 +124,7 @@ public class TextureLoader
 			width = data.width();
 			height = data.height();
 			
-			mipmap = rMipmap.getAsBool();
+			mipmap = rMipmap.asBool();
 			
 			texture = SingleTexture.alloc2D(width, height, GL_SRGB8_ALPHA8, mipmap ? SingleTexture.calculateMipLevels(width, height, 1) - mipmapBase : 1);
 			glTextureSubImage2D(texture.handle(), 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data.data());

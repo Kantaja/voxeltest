@@ -27,7 +27,11 @@ public class DepthBuffer implements IDestroyable
 		glNamedFramebufferTexture(framebuffer, stencil ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT, texture.handle(), 0);
 		
 		glNamedFramebufferDrawBuffer(framebuffer, GL_NONE);
-		
+	}
+	
+	public int handle()
+	{
+		return framebuffer;
 	}
 	
 	public boolean hasStencil()
@@ -35,31 +39,33 @@ public class DepthBuffer implements IDestroyable
 		return stencil;
 	}
 	
-	public SingleTexture getTexture()
+	public SingleTexture texture()
 	{
 		return texture;
 	}
 	
 	public void bind()
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
 	}
 	
 	public void unbind()
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	}
 	
 	@Override
 	public void destroy()
 	{
+		glDeleteFramebuffers(framebuffer);
 		texture.destroy();
+		
 		VoxelTest.removeDestroyable(this);
 	}
 	
 	public static DepthBuffer createShadowmap()
 	{
-		int size = Renderer.getShadowmapSize();
+		int size = Renderer.rShadowmapSize.asInt();
 		DepthBuffer result = new DepthBuffer(size, size, false);
 		
 		glTextureParameteri(result.texture.handle(), GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

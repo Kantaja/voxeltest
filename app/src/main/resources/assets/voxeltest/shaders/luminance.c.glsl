@@ -2,7 +2,7 @@ layout (local_size_x = 64) in;
 
 layout (r32f, binding = 0) uniform image2D finalLuminance;
 
-layout (std430, binding = 0) buffer luminanceHistogram {
+layout (std430, binding = 0) readonly buffer luminanceHistogram {
 	uint lumData[256];
 };
 

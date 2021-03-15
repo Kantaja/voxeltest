@@ -3,8 +3,8 @@ layout (local_size_x = 64) in;
 const vec3 lumaK = vec3(0.2126, 0.7152, 0.0722);
 const float zFar = 0.0;
 
-layout ( binding = 0) uniform sampler2D color;
-layout ( binding = 1) uniform sampler2D depth;
+layout (bindless_sampler) uniform sampler2D color;
+layout (bindless_sampler) uniform sampler2D depth;
 
 layout (std430, binding = 0) buffer luminanceHistogram {
 	uint lumData[256];

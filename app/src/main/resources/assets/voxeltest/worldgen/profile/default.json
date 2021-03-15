@@ -1,0 +1,168 @@
+{
+  "stages": [
+    {
+      "stage": "voxeltest:default_base",
+      "enabled": true,
+      "config": {
+        "density_noise": {
+          "type": "opensimplex2s",
+          "xz_frequency": 0.0026,
+          "y_frequency": 0.0052,
+          "fractal": {
+            "type": "fbm",
+            "octaves": 16
+          },
+          "offset_factors": {
+            "x": 256.0,
+            "y": 256.0,
+            "z": 256.0
+          }
+        },
+        "selector_noise": {
+          "type": "opensimplex2s",
+          "xz_frequency": 0.0167,
+          "y_frequency": 0.0167,
+          "fractal": {
+            "type": "fbm",
+            "octaves": 8
+          },
+          "offset_factors": {
+            "x": 256.0,
+            "y": 256.0,
+            "z": 256.0
+          }
+        },
+        "flatten_noise": {
+          "type": "opensimplex2s",
+          "xz_frequency": 0.001,
+          "y_frequency": 0.001,
+          "scale": 8.0,
+          "fractal": {
+            "type": "fbm",
+            "octaves": 8
+          },
+          "offset_factors": {
+            "x": 256.0,
+            "y": 256.0,
+            "z": 256.0
+          }
+        },
+        "filler_noise": {
+          "type": "opensimplex2s",
+          "xz_frequency": 0.02,
+          "y_frequency": 0.02,
+          "fractal": {
+            "type": "fbm",
+            "octaves": 4
+          }
+        },
+        "sampling": {
+          "xz_frequency": 8,
+          "y_frequency": 4
+        },
+        "base_dirt_height": 3,
+        "falloff_offset": 3,
+        "falloff_scale": 0.006,
+        "flatten_offset": 1,
+        "flatten_scale": 3.0
+      }
+    },
+    {
+      "stage": "voxeltest:default_water",
+      "enabled": true
+    },
+    {
+      "stage": "voxeltest:gradient_caves",
+      "enabled": true,
+      "config": {
+        "noise": {
+          "noise": {
+            "type": "opensimplex2s",
+            "xz_frequency": 0.00355694247,
+            "y_frequency": 0.00711388494,
+            "zero_to_one": true,
+            "fractal": {
+              "type": "fbm",
+              "octaves": 8
+            },
+            "offset_factors": {
+              "x": 1024.0,
+              "y": 1024.0,
+              "z": 1024.0
+            }
+          },
+          "sampling": {
+            "xz_frequency": 4,
+            "y_frequency": 4
+          }
+        },
+        "threshold": 0.7,
+        "falloff_offset": 64,
+        "falloff_scale": 0.006
+      }
+    },
+    {
+      "stage": "voxeltest:cellular_caves",
+      "enabled": false,
+      "config": {
+        "carve_noise": {
+          "type": "cellular",
+          "xz_frequency": 0.016,
+          "y_frequency": 0.016,
+          "zero_to_one": true,
+          "cellular": {
+            "distance_function": "euclidean_sq",
+            "return_type": "distance3_div"
+          }
+        },
+        "warp_noise": {
+          "type": "opensimplex2s",
+          "xz_frequency": 0.05
+        },
+        "sampling": {
+          "xz_frequency": 4,
+          "y_frequency": 1
+        },
+        "threshold": 0.41,
+        "warp_scale": 8.0
+      }
+    },
+    {
+      "stage": "voxeltest:decorator",
+      "enabled": true,
+      "config": {
+        "features": [
+          {
+            "feature": "voxeltest:tree",
+            "config": {
+              "chance": 768,
+              "grass": "voxeltest:grass",
+              "dirt": "voxeltest:dirt",
+              "log": "voxeltest:log",
+              "leaves": "voxeltest:leaves"
+            }
+          },
+          {
+            "feature": "voxeltest:single_block_replacement",
+            "config": {
+              "base": "voxeltest:stone",
+              "replacement": "voxeltest:emerald_ore",
+              "chance": 0.0004,
+              "max_y": -48
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "terrain": {
+    "base": "voxeltest:stone",
+    "filler": "voxeltest:dirt",
+    "top": "voxeltest:grass"
+  },
+  "water": {
+    "liquid": "voxeltest:water",
+    "liquid_top": "voxeltest:sand",
+    "sea_level": 0
+  }
+}

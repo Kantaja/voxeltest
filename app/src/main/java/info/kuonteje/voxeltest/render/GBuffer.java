@@ -33,22 +33,22 @@ public class GBuffer implements IDestroyable
 		
 		SingleTexture albedo = SingleTexture.alloc2D(width, height, GL_RGBA8, 1);
 		glNamedFramebufferTexture(framebuffer, GL_COLOR_ATTACHMENT0 + ALBEDO_INDEX, albedo.handle(), 0);
-		this.albedo = albedo.getBindlessHandle();
+		this.albedo = albedo.bindlessHandle();
 		
 		// TODO position from depth
 		SingleTexture position = SingleTexture.alloc2D(width, height, GL_RGBA32F, 1);
 		glNamedFramebufferTexture(framebuffer, GL_COLOR_ATTACHMENT0 + POSITION_INDEX, position.handle(), 0);
-		this.position = position.getBindlessHandle();
+		this.position = position.bindlessHandle();
 		
 		SingleTexture normal = SingleTexture.alloc2D(width, height, GL_RGBA16F, 1);
 		glNamedFramebufferTexture(framebuffer, GL_COLOR_ATTACHMENT0 + NORMAL_INDEX, normal.handle(), 0);
-		this.normal = normal.getBindlessHandle();
+		this.normal = normal.bindlessHandle();
 		
 		if(depthBuffer != null)
 		{
-			SingleTexture depth = depthBuffer.getTexture();
+			SingleTexture depth = depthBuffer.texture();
 			glNamedFramebufferTexture(framebuffer, depthBuffer.hasStencil() ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT, depth.handle(), 0);
-			this.depth = depth.getBindlessHandle();
+			this.depth = depth.bindlessHandle();
 		}
 		else depth = null;
 		
@@ -64,22 +64,27 @@ public class GBuffer implements IDestroyable
 		}
 	}
 	
-	public SingleTexture getAlbedoTexture()
+	public int handle()
+	{
+		return framebuffer;
+	}
+	
+	public SingleTexture albedoTexture()
 	{
 		return albedo.texture();
 	}
 	
-	public SingleTexture getPositionTexture()
+	public SingleTexture positionTexture()
 	{
 		return position.texture();
 	}
 	
-	public SingleTexture getNormalTexture()
+	public SingleTexture normalTexture()
 	{
 		return normal.texture();
 	}
 	
-	public SingleTexture getDepthTexture()
+	public SingleTexture depthTexture()
 	{
 		return depth == null ? null : depth.texture();
 	}
@@ -102,12 +107,12 @@ public class GBuffer implements IDestroyable
 	
 	public void bind()
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
 	}
 	
 	public void unbind()
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	}
 	
 	public void uploadTextureHandles(ShaderProgram shader)

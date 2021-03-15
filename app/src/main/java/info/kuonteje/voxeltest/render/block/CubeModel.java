@@ -4,12 +4,15 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+
 import info.kuonteje.voxeltest.block.Block;
 import info.kuonteje.voxeltest.data.EntryId;
 import info.kuonteje.voxeltest.data.RegistryEntry;
 import info.kuonteje.voxeltest.render.BlockTexture;
 import info.kuonteje.voxeltest.render.ModelUtil;
 
+@JsonSerialize(using = RegistryEntry.Serializer.class)
 public class CubeModel extends BlockModel
 {
 	private static final int MISSING_LAYER = 0;
@@ -49,7 +52,7 @@ public class CubeModel extends BlockModel
 	
 	public CubeModel(RegistryEntry<Block> block)
 	{
-		super(block.getId());
+		super(block.id());
 	}
 	
 	public CubeModel setTint(int tint)
@@ -60,33 +63,19 @@ public class CubeModel extends BlockModel
 	
 	public CubeModel setAll(BlockTexture texture)
 	{
-		int idx = texture.getIdx();
-		
-		north = idx;
-		south = idx;
-		east = idx;
-		west = idx;
-		top = idx;
-		bottom = idx;
-		
+		north = south = east = west = top = bottom = texture.idx();
 		return this;
 	}
 	
 	public CubeModel setSide(BlockTexture texture)
 	{
-		int idx = texture.getIdx();
-		
-		north = idx;
-		south = idx;
-		east = idx;
-		west = idx;
-		
+		north = south = east = west = texture.idx();
 		return this;
 	}
 	
 	public CubeModel setTopBottom(BlockTexture texture)
 	{
-		int idx = texture.getIdx();
+		int idx = texture.idx();
 		
 		top = idx;
 		bottom = idx;
@@ -96,37 +85,37 @@ public class CubeModel extends BlockModel
 	
 	public CubeModel setNorth(BlockTexture texture)
 	{
-		north = texture.getIdx();
+		north = texture.idx();
 		return this;
 	}
 	
 	public CubeModel setSouth(BlockTexture texture)
 	{
-		south = texture.getIdx();
+		south = texture.idx();
 		return this;
 	}
 	
 	public CubeModel setEast(BlockTexture texture)
 	{
-		east = texture.getIdx();
+		east = texture.idx();
 		return this;
 	}
 	
 	public CubeModel setWest(BlockTexture texture)
 	{
-		west = texture.getIdx();
+		west = texture.idx();
 		return this;
 	}
 	
 	public CubeModel setTop(BlockTexture texture)
 	{
-		top = texture.getIdx();
+		top = texture.idx();
 		return this;
 	}
 	
 	public CubeModel setBottom(BlockTexture texture)
 	{
-		bottom = texture.getIdx();
+		bottom = texture.idx();
 		return this;
 	}
 	

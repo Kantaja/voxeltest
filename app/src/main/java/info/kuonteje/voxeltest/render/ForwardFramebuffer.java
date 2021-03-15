@@ -58,24 +58,29 @@ public class ForwardFramebuffer implements IDestroyable
 		
 		SingleTexture color = SingleTexture.alloc2D(width, height, fp ? GL_RGBA16F : GL_RGBA16, 1);
 		glNamedFramebufferTexture(framebuffer, GL_COLOR_ATTACHMENT0, color.handle(), 0);
-		this.color = color.getBindlessHandle();
+		this.color = color.bindlessHandle();
 		
 		if(depthBuffer != null)
 		{
-			depth = depthBuffer.getTexture();
+			depth = depthBuffer.texture();
 			glNamedFramebufferTexture(framebuffer, depthBuffer.hasStencil() ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT, depth.handle(), 0);
 			
-			depth.getBindlessHandle();
+			depth.bindlessHandle();
 		}
 		else depth = null;
 	}
 	
-	public SingleTexture getColorTexture()
+	public int handle()
+	{
+		return framebuffer;
+	}
+	
+	public SingleTexture colorTexture()
 	{
 		return color.texture();
 	}
 	
-	public SingleTexture getDepthTexture()
+	public SingleTexture depthTexture()
 	{
 		return depth;
 	}
@@ -97,7 +102,7 @@ public class ForwardFramebuffer implements IDestroyable
 		shader.bind();
 		
 		shader.upload("colorSampler", color);
-		if(depthTexture != null) shader.upload("depthSampler", depthTexture.getBindlessHandle());
+		if(depthTexture != null) shader.upload("depthSampler", depthTexture.bindlessHandle());
 		
 		drawFullscreenQuad();
 	}
@@ -109,12 +114,12 @@ public class ForwardFramebuffer implements IDestroyable
 	
 	public void bind()
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
 	}
 	
 	public void unbind()
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	}
 	
 	public void blitColorTo(ForwardFramebuffer other, boolean linear)

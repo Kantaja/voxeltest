@@ -1,29 +1,80 @@
 package info.kuonteje.voxeltest.world.worldgen.feature;
 
-import java.util.function.LongFunction;
+import java.io.IOException;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+
+import info.kuonteje.voxeltest.data.DefaultRegistries;
 import info.kuonteje.voxeltest.data.EntryId;
 import info.kuonteje.voxeltest.data.RegistryEntry;
+import info.kuonteje.voxeltest.world.worldgen.config.data.GeneratorConfig;
+import info.kuonteje.voxeltest.world.worldgen.feature.generator.IFeatureGenerator;
 
-public class Feature extends RegistryEntry<Feature>
+@JsonSerialize(using = RegistryEntry.Serializer.class)
+@JsonDeserialize(using = Feature.Deserializer.class)
+public final class Feature<C extends IFeatureConfig> extends RegistryEntry<Feature<?>>
 {
-	private static final IFeatureGenerator IDENTITY = (world, chunk) -> {};
+	public static interface IFeatureGeneratorFactory
+	{
+		IFeatureGenerator createGenerator(GeneratorConfig rootConfig, IFeatureConfig config, long seed);
+	}
 	
-	protected final LongFunction<IFeatureGenerator> constructor;
+	// null for correct serialization
+	public static final NoFeatureConfig NO_CONFIG = null;
 	
-	public Feature(EntryId id, LongFunction<IFeatureGenerator> constructor)
+	private final IFeatureGeneratorFactory factory;
+	
+	private final Class<C> configType;
+	private final C defaultConfig;
+	
+	public Feature(EntryId id, Class<C> configType, C defaultConfig, IFeatureGeneratorFactory factory)
 	{
 		super(Feature.class, id);
-		this.constructor = constructor;
+		
+		this.factory = factory;
+		
+		this.configType = configType;
+		this.defaultConfig = defaultConfig;
 	}
 	
-	public Feature(String id, LongFunction<IFeatureGenerator> constructor)
+	public Feature(String id, Class<C> configType, C defaultConfig, IFeatureGeneratorFactory factory)
 	{
-		this(EntryId.create(id), constructor);
+		this(EntryId.create(id), configType, defaultConfig, factory);
 	}
 	
-	public IFeatureGenerator createGenerator(long seed)
+	public Class<C> configType()
 	{
-		return constructor == null ? IDENTITY : constructor.apply(seed);
+		return configType;
+	}
+	
+	public C defaultConfig()
+	{
+		return defaultConfig;
+	}
+	
+	public IFeatureGenerator createGenerator(GeneratorConfig rootConfig, IFeatureConfig config, long seed)
+	{
+		return factory.createGenerator(rootConfig, config, seed);
+	}
+	
+	public static class Deserializer extends StdDeserializer<Feature<?>>
+	{
+		private static final long serialVersionUID = 1L;
+		
+		public Deserializer()
+		{
+			super(Feature.class);
+		}
+		
+		@Override
+		public Feature<?> deserialize(JsonParser parser, DeserializationContext ctx) throws IOException, JsonProcessingException
+		{
+			return DefaultRegistries.FEATURES.byId(parser.getCodec().readValue(parser, EntryId.class)).orElseThrow();
+		}
 	}
 }
