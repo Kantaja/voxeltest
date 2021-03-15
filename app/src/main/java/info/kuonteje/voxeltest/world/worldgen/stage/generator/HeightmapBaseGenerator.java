@@ -168,7 +168,7 @@ public class HeightmapBaseGenerator implements IWorldGenerator
 	
 	public static HeightmapBaseGenerator factory(GeneratorConfig rootConfig, IGenerationStageConfig config, long seed)
 	{
-		return new HeightmapBaseGenerator(rootConfig, (Config)config, seed);
+		return new HeightmapBaseGenerator(rootConfig, config == null ? DEFAULT_CONFIG : (Config)config, seed);
 	}
 	
 	@JsonDeserialize(builder = Config.Builder.class)

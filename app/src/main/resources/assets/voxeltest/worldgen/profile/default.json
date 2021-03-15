@@ -37,6 +37,7 @@
           "xz_frequency": 0.001,
           "y_frequency": 0.001,
           "scale": 8.0,
+          "zero_to_one": true,
           "fractal": {
             "type": "fbm",
             "octaves": 8
@@ -135,7 +136,7 @@
           {
             "feature": "voxeltest:tree",
             "config": {
-              "chance": 768,
+              "chance": 0.0013,
               "grass": "voxeltest:grass",
               "dirt": "voxeltest:dirt",
               "log": "voxeltest:log",

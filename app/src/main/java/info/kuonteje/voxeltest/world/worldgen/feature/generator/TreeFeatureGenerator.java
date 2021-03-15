@@ -18,7 +18,7 @@ import info.kuonteje.voxeltest.world.worldgen.feature.IFeatureConfig;
 public class TreeFeatureGenerator implements IFeatureGenerator
 {
 	public static Config DEFAULT_CONFIG = Config.builder()
-			.chance(768)
+			.chance(0.0013)
 			.grass(Blocks.GRASS)
 			.dirt(Blocks.DIRT)
 			.log(Blocks.LOG)
@@ -41,27 +41,6 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 		
 		Random random = MiscUtil.randomGenerator(chunk.pos().chunkSeed(world.seed()));
 		
-		/*
-		new PoissonSampling.Disk(chunk.pos().chunkSeed(world.seed()), (float)Math.sqrt(16 * 16 + 16 * 16), 12.0F, 25, (x, z) ->
-		{
-			x += 16.0F;
-			z += 16.0F;
-			
-			if(x < 0.0F || x >= 32.0F || z < 0.0F || z >= 32.0F) return;
-			
-			for(int y = 31; y >= 0; y--)
-			{
-				int idx = chunk.blockIdxAt((int)x, y, (int)z);
-				
-				if(idx != 0)
-				{
-					if(idx == Blocks.GRASS.idx()) generate(world, random, chunk.pos().worldX() + (int)x, chunk.pos().worldY() + y + 1, chunk.pos().worldZ() + (int)z);
-					continue;
-				}
-			}
-		});
-		 */
-		
 		for(int x = 0; x < 32; x++)
 		{
 			for(int z = 0; z < 32; z++)
@@ -72,7 +51,7 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 					
 					if(idx != 0)
 					{
-						if(idx == config.grass().idx() && random.nextInt(config.chance()) == 0)
+						if(idx == config.grass().idx() && random.nextDouble() < config.chance())
 							generate(world, random, chunk.pos().worldX() + x, chunk.pos().worldY() + y + 1, chunk.pos().worldZ() + z);
 						
 						continue;
@@ -93,11 +72,11 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 		
 		for(int i = 2; i < 4; i++)
 		{
-			if(random.nextInt(i == 2 ? 5 : 10) == 0) setBlock(world, x - 2, y + i, z - 2, config.leaves(), BlockPredicate.EMPTY);
+			if(random.nextDouble() < (i == 2 ? 0.2 : 0.1)) setBlock(world, x - 2, y + i, z - 2, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x - 1, y + i, z - 2, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x, y + i, z - 2, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x + 1, y + i, z - 2, config.leaves(), BlockPredicate.EMPTY);
-			if(random.nextInt(i == 2 ? 5 : 10) == 0) setBlock(world, x + 2, y + i, z - 2, config.leaves(), BlockPredicate.EMPTY);
+			if(random.nextDouble() < (i == 2 ? 0.2 : 0.1)) setBlock(world, x + 2, y + i, z - 2, config.leaves(), BlockPredicate.EMPTY);
 			
 			setBlock(world, x - 2, y + i, z - 1, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x - 1, y + i, z - 1, config.leaves(), BlockPredicate.EMPTY);
@@ -117,26 +96,26 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 			setBlock(world, x + 1, y + i, z + 1, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x + 2, y + i, z + 1, config.leaves(), BlockPredicate.EMPTY);
 			
-			if(random.nextInt(i == 2 ? 5 : 10) == 0) setBlock(world, x - 2, y + i, z + 2, config.leaves(), BlockPredicate.EMPTY);
+			if(random.nextDouble() < (i == 2 ? 0.2 : 0.1)) setBlock(world, x - 2, y + i, z + 2, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x - 1, y + i, z + 2, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x, y + i, z + 2, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x + 1, y + i, z + 2, config.leaves(), BlockPredicate.EMPTY);
-			if(random.nextInt(i == 2 ? 5 : 10) == 0) setBlock(world, x + 2, y + i, z + 2, config.leaves(), BlockPredicate.EMPTY);
+			if(random.nextDouble() < (i == 2 ? 0.2 : 0.1)) setBlock(world, x + 2, y + i, z + 2, config.leaves(), BlockPredicate.EMPTY);
 		}
 		
 		for(int i = 4; i < 6; i++)
 		{
-			if(random.nextInt(i == 4 ? 5 : 10) == 0) setBlock(world, x - 1, y + i, z - 1, config.leaves(), BlockPredicate.EMPTY);
+			if(random.nextDouble() < (i == 4 ? 0.2 : 0.1)) setBlock(world, x - 1, y + i, z - 1, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x, y + i, z - 1, config.leaves());
-			if(random.nextInt(i == 4 ? 5 : 10) == 0) setBlock(world, x + 1, y + i, z - 1, config.leaves(), BlockPredicate.EMPTY);
+			if(random.nextDouble() < (i == 4 ? 0.2 : 0.1)) setBlock(world, x + 1, y + i, z - 1, config.leaves(), BlockPredicate.EMPTY);
 			
 			setBlock(world, x - 1, y + i, z, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x, y + i, z, i == 4 ? config.log() : config.leaves(), i == 4 ? null : BlockPredicate.EMPTY);
 			setBlock(world, x + 1, y + i, z, config.leaves(), BlockPredicate.EMPTY);
 			
-			if(random.nextInt(i == 4 ? 5 : 10) == 0) setBlock(world, x - 1, y + i, z + 1, config.leaves(), BlockPredicate.EMPTY);
+			if(random.nextDouble() < (i == 4 ? 0.2 : 0.1)) setBlock(world, x - 1, y + i, z + 1, config.leaves(), BlockPredicate.EMPTY);
 			setBlock(world, x, y + i, z + 1, config.leaves(), BlockPredicate.EMPTY);
-			if(random.nextInt(i == 4 ? 5 : 10) == 0) setBlock(world, x + 1, y + i, z + 1, config.leaves(), BlockPredicate.EMPTY);
+			if(random.nextDouble() < (i == 4 ? 0.2 : 0.1)) setBlock(world, x + 1, y + i, z + 1, config.leaves(), BlockPredicate.EMPTY);
 		}
 	}
 	
@@ -148,13 +127,13 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 	@JsonDeserialize(builder = Config.Builder.class)
 	public static class Config implements IFeatureConfig
 	{
-		private final int chance;
+		private final double chance;
 		private final Block grass;
 		private final Block dirt;
 		private final Block log;
 		private final Block leaves;
 		
-		private Config(int chance, Block grass, Block dirt, Block log, Block leaves)
+		private Config(double chance, Block grass, Block dirt, Block log, Block leaves)
 		{
 			this.chance = chance;
 			this.grass = grass;
@@ -164,7 +143,7 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 		}
 		
 		@JsonProperty
-		public int chance()
+		public double chance()
 		{
 			return chance;
 		}
@@ -201,7 +180,7 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 		@JsonPOJOBuilder(withPrefix = "")
 		public static class Builder
 		{
-			private int chance = 768;
+			private double chance = 0.0013;
 			private Block grass = Blocks.GRASS;
 			private Block dirt = Blocks.DIRT;
 			private Block log = Blocks.LOG;
@@ -210,7 +189,7 @@ public class TreeFeatureGenerator implements IFeatureGenerator
 			private Builder() {}
 			
 			@JsonProperty
-			public Builder chance(int chance)
+			public Builder chance(double chance)
 			{
 				this.chance = chance;
 				return this;

@@ -173,7 +173,7 @@ public class CellularCaveGenerator implements IWorldGenerator
 	
 	public static CellularCaveGenerator factory(GeneratorConfig baseConfig, IGenerationStageConfig config, long seed)
 	{
-		return new CellularCaveGenerator(baseConfig, (Config)config, seed);
+		return new CellularCaveGenerator(baseConfig, config == null ? DEFAULT_CONFIG : (Config)config, seed);
 	}
 	
 	@JsonDeserialize(builder = Config.Builder.class)

@@ -8,11 +8,10 @@ import org.gradle.internal.os.OperatingSystem
 ext {
 	lwjglVersion = '3.2.3'
 	jomlVersion = '1.9.25'
-	fastutilVersion = '8.4.2'
+	fastutilVersion = '8.5.2'
 	commonsIoVersion = '2.8.0'
 	imguiVersion = '1.79-1.4.0'
-	jacksonVersion = '2.12.1'
-	dsiutilsVersion = '2.6.17'
+	jacksonVersion = '2.12.2'
 
 	switch (OperatingSystem.current()) {
 		case OperatingSystem.LINUX:

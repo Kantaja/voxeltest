@@ -124,7 +124,7 @@ public class GradientCaveGenerator implements IWorldGenerator
 	
 	public static GradientCaveGenerator factory(GeneratorConfig rootConfig, IGenerationStageConfig config, long seed)
 	{
-		return new GradientCaveGenerator(rootConfig, (Config)config, seed);
+		return new GradientCaveGenerator(rootConfig, config == null ? DEFAULT_CONFIG : (Config)config, seed);
 	}
 	
 	@JsonDeserialize(builder = Config.Builder.class)

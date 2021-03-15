@@ -51,6 +51,7 @@ public class DefaultBaseGenerator implements IWorldGenerator
 					.type(NoiseType.OPENSIMPLEX2S)
 					.xzFrequency(0.001)
 					.scale(8.0)
+					.zeroToOne(true)
 					.fractal(FractalConfig.builder()
 							.type(FractalType.FBM)
 							.octaves(8)
@@ -206,7 +207,7 @@ public class DefaultBaseGenerator implements IWorldGenerator
 	
 	public static DefaultBaseGenerator factory(GeneratorConfig rootConfig, IGenerationStageConfig config, long seed)
 	{
-		return new DefaultBaseGenerator(rootConfig, (Config)config, seed);
+		return new DefaultBaseGenerator(rootConfig, config == null ? DEFAULT_CONFIG : (Config)config, seed);
 	}
 	
 	@JsonDeserialize(builder = Config.Builder.class)

@@ -125,7 +125,7 @@ public class OldBaseGenerator implements IWorldGenerator
 	
 	public static OldBaseGenerator factory(GeneratorConfig rootConfig, IGenerationStageConfig config, long seed)
 	{
-		return new OldBaseGenerator(rootConfig, (Config)config, seed);
+		return new OldBaseGenerator(rootConfig, config == null ? DEFAULT_CONFIG : (Config)config, seed);
 	}
 	
 	public static class Config implements IGenerationStageConfig

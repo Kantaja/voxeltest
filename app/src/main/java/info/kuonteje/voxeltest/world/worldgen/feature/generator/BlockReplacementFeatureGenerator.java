@@ -33,17 +33,13 @@ public class BlockReplacementFeatureGenerator implements IFeatureGenerator
 		this.basePredicate = BlockPredicate.forBlock(config.base);
 	}
 	
-	public BlockReplacementFeatureGenerator(IFeatureConfig config)
-	{
-		this((Config)config);
-	}
-	
 	@Override
 	public void tryGenerateIn(World world, Chunk chunk)
 	{
 		int baseY = chunk.pos().worldY();
 		
 		if(baseY > config.maxY()) return;
+		if(baseY + 31 < config.minY()) return;
 		
 		Random random = MiscUtil.randomGenerator(chunk.pos().chunkSeed(world.seed()));
 		
@@ -53,7 +49,7 @@ public class BlockReplacementFeatureGenerator implements IFeatureGenerator
 			{
 				for(int y = 0; y < 32; y++)
 				{
-					if(baseY + y <= config.maxY() && random.nextFloat() < config.chance()) setBlock(chunk, x, y, z, config.replacement(), basePredicate);
+					if(baseY + y >= config.minY() && baseY + y <= config.maxY() && random.nextFloat() < config.chance()) setBlock(chunk, x, y, z, config.replacement(), basePredicate);
 				}
 			}
 		}
@@ -69,14 +65,16 @@ public class BlockReplacementFeatureGenerator implements IFeatureGenerator
 	{
 		private final Block base;
 		private final Block replacement;
-		private final float chance;
+		private final double chance;
+		private final int minY;
 		private final int maxY;
 		
-		private Config(Block base, Block replacement, float chance, int maxY)
+		private Config(Block base, Block replacement, double chance, int minY, int maxY)
 		{
 			this.base = base;
 			this.replacement = replacement;
 			this.chance = chance;
+			this.minY = minY;
 			this.maxY = maxY;
 		}
 		
@@ -93,9 +91,15 @@ public class BlockReplacementFeatureGenerator implements IFeatureGenerator
 		}
 		
 		@JsonProperty
-		public float chance()
+		public double chance()
 		{
 			return chance;
+		}
+		
+		@JsonProperty
+		public int minY()
+		{
+			return minY;
 		}
 		
 		@JsonProperty
@@ -114,8 +118,9 @@ public class BlockReplacementFeatureGenerator implements IFeatureGenerator
 		{
 			private Block base;
 			private Block replacement;
-			private float chance;
-			private int maxY;
+			private double chance;
+			private int minY = Integer.MIN_VALUE;
+			private int maxY = Integer.MAX_VALUE;
 			
 			private Builder() {}
 			
@@ -134,9 +139,16 @@ public class BlockReplacementFeatureGenerator implements IFeatureGenerator
 			}
 			
 			@JsonProperty
-			public Builder chance(float chance)
+			public Builder chance(double chance)
 			{
 				this.chance = chance;
+				return this;
+			}
+			
+			@JsonProperty
+			public Builder minY(int minY)
+			{
+				this.minY = minY;
 				return this;
 			}
 			
@@ -149,7 +161,7 @@ public class BlockReplacementFeatureGenerator implements IFeatureGenerator
 			
 			public Config build()
 			{
-				return new Config(base, replacement, chance, maxY);
+				return new Config(base, replacement, chance, minY, maxY);
 			}
 		}
 	}

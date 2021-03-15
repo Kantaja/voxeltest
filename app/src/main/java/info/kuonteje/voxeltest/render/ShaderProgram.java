@@ -101,7 +101,7 @@ public class ShaderProgram implements IDestroyable
 	
 	public int uniformHandle(String name)
 	{
-		return uniformCache.get().computeIntIfAbsent(name, s -> glGetUniformLocation(program, s));
+		return uniformCache.get().computeIfAbsent(name, (String s) -> glGetUniformLocation(program, s));
 	}
 	
 	public void upload(String uniform, float x)
